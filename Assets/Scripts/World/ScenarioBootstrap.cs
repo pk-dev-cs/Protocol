@@ -102,6 +102,7 @@ namespace Protocol
             if (transform.Find("World") != null)
             {
                 ScenarioLandscape.Ensure(transform.Find("World"));
+                AlienWorldLighting.Ensure(transform.Find("World"));
                 return;
             }
 
@@ -151,12 +152,13 @@ namespace Protocol
             cameraObject.tag = "MainCamera";
             var camera = cameraObject.AddComponent<Camera>();
             camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(0.055f, 0.08f, 0.11f);
+            camera.backgroundColor = Color.black;
             camera.nearClipPlane = 0.3f;
             camera.farClipPlane = 200;
             camera.fieldOfView = 50;
             cameraObject.AddComponent<AudioListener>();
             cameraObject.AddComponent<RTSCameraController>().ResetView();
+            AlienWorldLighting.Ensure(world);
         }
 
         public static void BuildRobot(string name, Transform parent, Vector3 position, Material shell, Material dark, Material accent)

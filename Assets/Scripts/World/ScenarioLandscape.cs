@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Protocol
 {
-    /// <summary>Deterministic, low-poly terrain and forest for the first scenario.</summary>
+    /// <summary>Deterministic alien terrain and harvestable xenoflora for the first scenario.</summary>
     public sealed class ScenarioLandscape : MonoBehaviour
     {
         public const float Size = 256;
@@ -18,6 +18,8 @@ namespace Protocol
             landscape.Generate();
         }
 
+        public void Regenerate() => Generate();
+
         public static float HeightAt(float x, float z)
 
         {
@@ -28,7 +30,8 @@ namespace Protocol
             float hillA = 13 * Mathf.Exp(-((x + 66) * (x + 66) + (z - 48) * (z - 48)) / 780);
             float hillB = 16 * Mathf.Exp(-((x - 73) * (x - 73) + (z - 66) * (z - 66)) / 1000);
             float hillC = 10 * Mathf.Exp(-((x - 37) * (x - 37) + (z + 72) * (z + 72)) / 700);
-            return clearing * (broad + detail + hillA + hillB + hillC);
+            float ridges = Mathf.Abs(Mathf.PerlinNoise((x + 510) / 41, (z + 290) / 41) - .5f) * 3.2f;
+            return clearing * (broad + detail + ridges + hillA + hillB + hillC);
         }
 
         private Material MakeMaterial(string name, Color color)
@@ -40,7 +43,13 @@ namespace Protocol
                 color = color
             };
             material.enableInstancing = true;
-            material.SetFloat("_Glossiness", .08f);
+            material.SetFloat("_Glossiness", .16f);
+            material.SetFloat("_Metallic", .08f);
+            if (name.StartsWith("Alien"))
+            {
+                material.EnableKeyword("_EMISSION");
+                material.SetColor("_EmissionColor", color * .28f);
+            }
             owned.Add(material);
             return material;
         }
@@ -63,10 +72,11 @@ namespace Protocol
         {
             RemoveOld("Terrain");
             RemoveOld("Terrain markings");
+            RemoveOld("Trees");
             new GameObject("Terrain markings").transform.SetParent(transform, false);
-            var grass = MakeMaterial("Landscape Grass", new Color(.28f, .39f, .22f));
-            var earth = MakeMaterial("Landscape Clearing", new Color(.43f, .40f, .28f));
-            var stone = MakeMaterial("Landscape Highland", new Color(.40f, .45f, .39f));
+            var grass = MakeMaterial("Alien Lowlands", new Color(.055f, .18f, .23f));
+            var earth = MakeMaterial("Alien Clearing", new Color(.22f, .13f, .31f));
+            var stone = MakeMaterial("Alien Highlands", new Color(.105f, .12f, .25f));
             const int cells = 128;
             var vertices = new Vector3[(cells + 1) * (cells + 1)];
             var uv = new Vector2[vertices.Length];
@@ -125,12 +135,12 @@ namespace Protocol
         {
             var root = new GameObject("Trees").transform;
             root.SetParent(transform, false);
-            var bark = MakeMaterial("Forest Bark", new Color(.24f, .16f, .10f));
+            var bark = MakeMaterial("Alien Stalk", new Color(.11f, .07f, .18f));
             var leaves = new[]
             {
-                MakeMaterial("Forest Pine Dark", new Color(.09f, .24f, .14f)),
-                MakeMaterial("Forest Pine Green", new Color(.16f, .32f, .17f)),
-                MakeMaterial("Forest Pine Light", new Color(.25f, .38f, .18f))
+                MakeMaterial("Alien Crown Cyan", new Color(.13f, .62f, .72f)),
+                MakeMaterial("Alien Crown Rose", new Color(.72f, .18f, .48f)),
+                MakeMaterial("Alien Crown Violet", new Color(.38f, .20f, .68f))
             };
             var cone = MakeCone();
             owned.Add(cone);
@@ -154,24 +164,24 @@ namespace Protocol
                 if (near)
                     continue;
                 positions.Add(new Vector2(x, z));
-                float height = 5 + (float)random.NextDouble() * 4;
-                var tree = new GameObject("Pine " + positions.Count).transform;
+                float height = 5.5f + (float)random.NextDouble() * 5;
+                var tree = new GameObject("Xenoflora " + positions.Count).transform;
                 tree.SetParent(root, false);
                 tree.localPosition = new Vector3(x, HeightAt(x, z) - .08f, z);
                 var trunk = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
                 trunk.name = "Trunk";
                 trunk.transform.SetParent(tree, false);
-                trunk.transform.localPosition = Vector3.up * height * .22f;
-                trunk.transform.localScale = new Vector3(.75f, height * .25f, .75f);
+                trunk.transform.localPosition = Vector3.up * height * .29f;
+                trunk.transform.localScale = new Vector3(.42f, height * .29f, .42f);
                 trunk.GetComponent<Renderer>().sharedMaterial = bark;
                 // The canopy is visual only; the trunk blocks walking and raycasts.
-                for (int tier = 0; tier < 2; tier++)
+                for (int tier = 0; tier < 3; tier++)
                 {
                     var crown = new GameObject("Crown");
                     crown.transform.SetParent(tree, false);
-                    crown.transform.localPosition = Vector3.up * height * (.18f + tier * .28f);
-                    float radius = height * (.32f - tier * .06f);
-                    crown.transform.localScale = new Vector3(radius, height * (.60f - tier * .06f), radius);
+                    crown.transform.localPosition = new Vector3((tier - 1) * .16f, height * (.34f + tier * .18f), tier % 2 == 0 ? .12f : -.12f);
+                    float radius = height * (.23f - tier * .025f);
+                    crown.transform.localScale = new Vector3(radius, height * (.34f - tier * .025f), radius);
                     crown.AddComponent<MeshFilter>().sharedMesh = cone;
                     crown.AddComponent<MeshRenderer>().sharedMaterial = leaves[random.Next(leaves.Length)];
                 }
