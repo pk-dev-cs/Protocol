@@ -13,6 +13,9 @@ namespace Protocol
         private float previousTimeScale, volume, sensitivity;
         private bool fullscreen;
         private ScreenResolutionPicker resolution;
+        private int fpsLimit;
+        private bool musicEnabled;
+        private float musicVolume;
         private string message = "";
 
         private void OnEnable() => active = this;
@@ -98,20 +101,24 @@ namespace Protocol
             GUI.Label(new Rect(220, 88, 520, 54), settings ? "Ustawienia" : "Gra wstrzymana", title);
             if (settings)
             {
-                GUI.Label(new Rect(220, 166, 520, 32), "Głośność: " + Mathf.RoundToInt(volume * 100) + "%", label);
-                volume = GUI.HorizontalSlider(new Rect(220, 214, 520, 24), volume, 0, 1);
+                GUI.Label(new Rect(220, 156, 250, 32), "Głośność: " + Mathf.RoundToInt(volume * 100) + "%", label);
+                volume = GUI.HorizontalSlider(new Rect(480, 170, 260, 24), volume, 0, 1);
+                MusicSettingsControls.Draw(new Rect(220, 202, 520, 52), ref musicEnabled, ref musicVolume, label);
                 GUI.Label(new Rect(220, 260, 520, 32), "Czułość kamery: " + sensitivity.ToString("0.00") + "×", label);
-                sensitivity = GUI.HorizontalSlider(new Rect(220, 308, 520, 24), sensitivity, .25f, 2.5f);
+                sensitivity = GUI.HorizontalSlider(new Rect(220, 286, 520, 24), sensitivity, .25f, 2.5f);
                 fullscreen = GUI.Toggle(
-                    new Rect(220, 355, 520, 40),
+                    new Rect(220, 324, 520, 40),
                     fullscreen,
                     " Pełny ekran",
                     new GUIStyle(GUI.skin.toggle) { fontSize = 22 });
-                GUI.Label(new Rect(220, 416, 220, 40), "Rozdzielczość", label);
-                resolution.Draw(new Rect(440, 408, 300, 46), label, button);
+                GUI.Label(new Rect(220, 378, 220, 40), "Rozdzielczość", label);
+                resolution.Draw(new Rect(440, 370, 300, 46), label, button);
+                fpsLimit = FrameRatePicker.Draw(new Rect(220, 425, 520, 32), fpsLimit, label);
                 if (GUI.Button(new Rect(220, 470, 250, 48), "Zastosuj", button))
                 {
                     GameSettings.Save(volume, sensitivity, fullscreen, resolution.Selected.x, resolution.Selected.y);
+                    FrameRatePolicy.Save(fpsLimit);
+                    GameSettings.SaveMusic(musicEnabled, musicVolume);
                     message = "Ustawienia zapisane.";
                 }
 
@@ -132,6 +139,9 @@ namespace Protocol
                     sensitivity = GameSettings.CameraSensitivity;
                     fullscreen = Screen.fullScreen;
                     resolution = new ScreenResolutionPicker();
+                    fpsLimit = FrameRatePolicy.SavedLimit;
+                    musicEnabled = GameSettings.MusicEnabled;
+                    musicVolume = GameSettings.MusicVolume;
                 }
 
                 if (GUI.Button(new Rect(220, 310, 520, 56), "Wyjdź do menu głównego", button))

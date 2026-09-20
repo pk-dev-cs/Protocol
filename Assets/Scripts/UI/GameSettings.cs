@@ -5,6 +5,16 @@ namespace Protocol
     public static class GameSettings
     {
         public static float Volume => Mathf.Clamp01(PlayerPrefs.GetFloat("Settings.Volume", 1));
+        public static bool MusicEnabled => PlayerPrefs.GetInt("Settings.MusicEnabled", 1) != 0;
+        public static float MusicVolume => Mathf.Clamp01(PlayerPrefs.GetFloat("Settings.MusicVolume", .5f));
+
+        public static void SaveMusic(bool enabled, float volume)
+        {
+            PlayerPrefs.SetInt("Settings.MusicEnabled", enabled ? 1 : 0);
+            PlayerPrefs.SetFloat("Settings.MusicVolume", Mathf.Clamp01(volume));
+            PlayerPrefs.Save();
+            MusicPlayer.ApplySettings();
+        }
 
         public static float CameraSensitivity => Mathf.Clamp(PlayerPrefs.GetFloat("Settings.CameraSensitivity", 1), 0.25f, 2.5f);
 
