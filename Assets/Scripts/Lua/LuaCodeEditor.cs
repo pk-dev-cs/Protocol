@@ -293,10 +293,44 @@ namespace Protocol
             }
 
             GUI.Box(rect, GUIContent.none);
+
+            var input = new GUIStyle(style)
+            {
+                richText = false
+            };
+            foreach (var state in new[]
+            {
+                input.normal,
+                input.hover,
+                input.active,
+                input.focused,
+                input.onNormal,
+                input.onHover,
+                input.onActive,
+                input.onFocused
+            }
+
+            )
+            {
+                state.textColor = Color.clear;
+                state.background = null;
+            }
+
+            bool typedDot = Event.current.type == EventType.KeyDown && Event.current.character == '.';
+            int previousCursor = caret;
+            GUI.SetNextControlName("RobotLuaCode");
+            string edited = GUI.TextArea(rect, code, RobotLuaRuntime.MaxCodeLength, input);
             if (Event.current.type == EventType.Repaint)
             {
-                var label = new GUIStyle(style)
+                // Reserve glyphs before token draws so atlas growth cannot invalidate earlier tokens.
+                CodeFont.RequestCharactersInTexture(code, style.fontSize, style.fontStyle);
+                var label = new GUIStyle(GUIStyle.none)
                 {
+                    font = style.font,
+                    fontSize = style.fontSize,
+                    fontStyle = style.fontStyle,
+                    alignment = TextAnchor.UpperLeft,
+                    wordWrap = false,
                     richText = false,
                     padding = new RectOffset(),
                     margin = new RectOffset()
@@ -342,33 +376,6 @@ namespace Protocol
                     }
                 }
             }
-
-            var input = new GUIStyle(style)
-            {
-                richText = false
-            };
-            foreach (var state in new[]
-            {
-                input.normal,
-                input.hover,
-                input.active,
-                input.focused,
-                input.onNormal,
-                input.onHover,
-                input.onActive,
-                input.onFocused
-            }
-
-            )
-            {
-                state.textColor = Color.clear;
-                state.background = null;
-            }
-
-            bool typedDot = Event.current.type == EventType.KeyDown && Event.current.character == '.';
-            int previousCursor = caret;
-            GUI.SetNextControlName("RobotLuaCode");
-            string edited = GUI.TextArea(rect, code, RobotLuaRuntime.MaxCodeLength, input);
             // A consumed key does not register the TextArea's name again. Its stable
             // keyboard ID still owns focus; do not dismiss completion on EventType.Used.
             if (GUI.GetNameOfFocusedControl() == "RobotLuaCode" || (inputControl != 0 && GUIUtility.keyboardControl == inputControl))
