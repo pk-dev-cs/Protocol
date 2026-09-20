@@ -186,7 +186,7 @@ namespace Protocol
         private static Material Material(string name, Color color)
 
         {
-            return new Material(Shader.Find("Standard"))
+            return new Material(Resources.Load<Shader>("FogSurface"))
             {
                 name = name,
                 color = color

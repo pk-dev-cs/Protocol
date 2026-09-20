@@ -37,7 +37,7 @@ namespace Protocol
         private Material MakeMaterial(string name, Color color)
 
         {
-            var material = new Material(Shader.Find("Standard"))
+            var material = new Material(Resources.Load<Shader>("FogSurface"))
             {
                 name = name,
                 color = color
