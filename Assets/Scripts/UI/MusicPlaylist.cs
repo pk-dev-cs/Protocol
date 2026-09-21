@@ -6,5 +6,6 @@ namespace Protocol
     public sealed class MusicPlaylist : ScriptableObject
     {
         public AudioClip[] Tracks;
+        [Min(0)] public float CrossfadeSeconds = 3f;
     }
 }
