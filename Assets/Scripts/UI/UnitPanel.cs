@@ -98,7 +98,7 @@ namespace Protocol
                         continue;
                     if (portraitIndex >= maxPortraits)
                         break;
-                    var rect = new Rect(x + portraitIndex++ * 102 * scale, y + 40 * scale, 92 * scale, 92 * scale);
+                    var rect = new Rect(x + portraitIndex++ * 102 * scale, y + 10 * scale, 92 * scale, 92 * scale);
                     DrawPortrait(rect, portraits, unit.transform);
                 }
 
@@ -110,10 +110,6 @@ namespace Protocol
                         capacity += unit.CargoCapacity;
                     }
 
-                GUI.Label(
-                    new Rect(x, y, panel.width - x * 2, 32 * scale),
-                    "Zaznaczone jednostki: " + selection.SelectedRobots.Count,
-                    titleStyle);
                 GUI.Label(new Rect(x, y + 140 * scale, actionX - x, 32 * scale), $"Łączne cargo: {cargo} / {capacity}", textStyle);
                 bool sameType = true;
                 string kind = selection.SelectedRobots[0].UnitType;

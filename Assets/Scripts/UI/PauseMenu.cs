@@ -14,6 +14,7 @@ namespace Protocol
         private bool fullscreen;
         private ScreenResolutionPicker resolution;
         private int fpsLimit;
+        private int backgroundFpsLimit;
         private bool musicEnabled;
         private float musicVolume;
         private string message = "";
@@ -101,28 +102,31 @@ namespace Protocol
             GUI.Label(new Rect(220, 88, 520, 54), settings ? "Ustawienia" : "Gra wstrzymana", title);
             if (settings)
             {
-                GUI.Label(new Rect(220, 156, 250, 32), "Głośność: " + Mathf.RoundToInt(volume * 100) + "%", label);
-                volume = GUI.HorizontalSlider(new Rect(480, 170, 260, 24), volume, 0, 1);
-                MusicSettingsControls.Draw(new Rect(220, 202, 520, 52), ref musicEnabled, ref musicVolume, label);
-                GUI.Label(new Rect(220, 260, 520, 32), "Czułość kamery: " + sensitivity.ToString("0.00") + "×", label);
-                sensitivity = GUI.HorizontalSlider(new Rect(220, 286, 520, 24), sensitivity, .25f, 2.5f);
+                GUI.Label(new Rect(220, 156, 225, 32), "Głośność", label);
+                volume = GUI.HorizontalSlider(new Rect(445, 168, 215, 24), volume, 0, 1);
+                GUI.Label(new Rect(670, 156, 70, 32), Mathf.RoundToInt(volume * 100) + "%", label);
+                MusicSettingsControls.Draw(new Rect(220, 202, 520, 32), ref musicEnabled, ref musicVolume, label);
+                GUI.Label(new Rect(220, 250, 225, 32), "Czułość kamery", label);
+                sensitivity = GUI.HorizontalSlider(new Rect(445, 262, 215, 24), sensitivity, .25f, 2.5f);
+                GUI.Label(new Rect(670, 250, 70, 32), sensitivity.ToString("0.00") + "×", label);
                 fullscreen = GUI.Toggle(
-                    new Rect(220, 324, 520, 40),
+                    new Rect(220, 298, 520, 40),
                     fullscreen,
                     " Pełny ekran",
                     new GUIStyle(GUI.skin.toggle) { fontSize = 22 });
-                GUI.Label(new Rect(220, 378, 220, 40), "Rozdzielczość", label);
-                resolution.Draw(new Rect(440, 370, 300, 46), label, button);
-                fpsLimit = FrameRatePicker.Draw(new Rect(220, 425, 520, 32), fpsLimit, label);
-                if (GUI.Button(new Rect(220, 470, 250, 48), "Zastosuj", button))
+                GUI.Label(new Rect(220, 354, 225, 40), "Rozdzielczość", label);
+                resolution.Draw(new Rect(445, 346, 295, 40), label, button);
+                fpsLimit = FrameRatePicker.Draw(new Rect(220, 398, 520, 32), fpsLimit, label);
+                backgroundFpsLimit = FrameRatePicker.DrawBackground(new Rect(220, 440, 520, 32), backgroundFpsLimit, label);
+                if (GUI.Button(new Rect(220, 492, 250, 48), "Zastosuj", button))
                 {
                     GameSettings.Save(volume, sensitivity, fullscreen, resolution.Selected.x, resolution.Selected.y);
-                    FrameRatePolicy.Save(fpsLimit);
+                    FrameRatePolicy.Save(fpsLimit, backgroundFpsLimit);
                     GameSettings.SaveMusic(musicEnabled, musicVolume);
                     message = "Ustawienia zapisane.";
                 }
 
-                if (GUI.Button(new Rect(490, 470, 250, 48), "Wróć", button))
+                if (GUI.Button(new Rect(490, 492, 250, 48), "Wróć", button))
                 {
                     settings = false;
                     message = "";
@@ -140,6 +144,7 @@ namespace Protocol
                     fullscreen = Screen.fullScreen;
                     resolution = new ScreenResolutionPicker();
                     fpsLimit = FrameRatePolicy.SavedLimit;
+                    backgroundFpsLimit = FrameRatePolicy.SavedBackgroundLimit;
                     musicEnabled = GameSettings.MusicEnabled;
                     musicVolume = GameSettings.MusicVolume;
                 }
@@ -156,11 +161,11 @@ namespace Protocol
 
                 GUI.Label(
                     new Rect(220, 455, 520, 68),
-                    "Wyjście kończy scenariusz. Niezapisany kod i postęp rozgrywki zostaną utracone.",
+                    "Wyjście ze scenariusza oznacza utratę postępu i niezapisanego kodu.",
                     label);
             }
 
-            GUI.Label(new Rect(220, 530, 520, 50), message, label);
+            GUI.Label(new Rect(220, settings ? 552 : 530, 520, settings ? 32 : 50), message, label);
             GUI.matrix = oldMatrix;
             if (e.isMouse || e.isKey || e.type == EventType.ScrollWheel)
                 e.Use();
