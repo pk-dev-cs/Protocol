@@ -1,0 +1,6 @@
+﻿<Solution>
+  <Project Path="Assembly-CSharp.csproj" />
+  <Project Path="BKPureNature.PureVolumetricFog.Editor.csproj" />
+  <Project Path="Assembly-CSharp-Editor.csproj" />
+  <Project Path="BKPureNature.PureVolumetricFog.csproj" />
+</Solution>
