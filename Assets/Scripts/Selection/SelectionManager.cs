@@ -7,6 +7,7 @@ namespace Protocol
     public sealed class SelectionManager : MonoBehaviour
     {
         private Camera worldCamera;
+        private MoveCommandMarker moveMarker;
         private readonly List<RobotController> selected = new List<RobotController>();
 
         public IReadOnlyList<RobotController> SelectedRobots => selected;
@@ -123,6 +124,13 @@ namespace Protocol
                     accepted++;
             }
 
+            if (accepted > 0)
+            {
+                if (moveMarker == null)
+                    moveMarker = gameObject.AddComponent<MoveCommandMarker>();
+                var terrain = transform.Find("World/Terrain");
+                moveMarker.Show(point, terrain != null ? terrain.GetComponent<Collider>() : null);
+            }
             CommandMessage = accepted > 0 ? "Rozkaz ruchu: " + accepted + ". Programy tych robotów zatrzymano." : "Brak dostępnego celu ruchu.";
         }
 
@@ -221,6 +229,8 @@ namespace Protocol
         {
             CancelDrag();
             ClearSelection();
+            if (moveMarker != null)
+                moveMarker.Hide();
         }
     }
 }

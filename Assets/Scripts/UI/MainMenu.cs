@@ -21,6 +21,7 @@ namespace Protocol
         private bool fullscreen;
         private ScreenResolutionPicker resolution;
         private int fpsLimit;
+        private int backgroundFpsLimit;
         private bool musicEnabled;
         private float musicVolume;
         private string message = "";
@@ -51,6 +52,7 @@ namespace Protocol
                 fullscreen = Screen.fullScreen;
                 resolution = new ScreenResolutionPicker();
                 fpsLimit = FrameRatePolicy.SavedLimit;
+                backgroundFpsLimit = FrameRatePolicy.SavedBackgroundLimit;
                 musicEnabled = GameSettings.MusicEnabled;
                 musicVolume = GameSettings.MusicVolume;
             }
@@ -120,7 +122,6 @@ namespace Protocol
             GUI.DrawTexture(new Rect(56, 60, 6, 92), Texture2D.whiteTexture);
             GUI.color = previousColor;
             GUI.Label(new Rect(80, 52, 700, 82), "PROTOCOL", brand);
-            GUI.Label(new Rect(84, 137, 800, 36), "Zbuduj program. Uruchom roboty. Rozwijaj bazę.", text);
             GUI.enabled = !IsLoading;
             if (Page == MenuPage.Home)
             {
@@ -130,20 +131,16 @@ namespace Protocol
                     ShowPage(MenuPage.Settings);
                 if (GUI.Button(new Rect(80, 405, 340, 62), "Wyjdź z gry", button))
                     Quit();
-                GUI.Label(new Rect(490, 260, 370, 54), "Twoje roboty. Twój kod.", heading);
-                GUI.Label(
-                    new Rect(490, 330, 360, 140),
-                    "Steruj jednostkami za pomocą Lua i zautomatyzuj wydobycie surowców. Wybierz scenariusz, aby rozpocząć.",
-                    text);
+                GUI.Label(new Rect(490, 325, 390, 54), "Twoje roboty. Twój kod.", heading);
             }
             else if (Page == MenuPage.Scenarios)
             {
                 GUI.Label(new Rect(80, 205, 800, 50), "Scenariusze", heading);
                 GUI.Box(new Rect(80, 278, 800, 188), GUIContent.none);
-                GUI.Label(new Rect(104, 296, 700, 48), "01  /  Scenariusz 1", heading);
+                GUI.Label(new Rect(104, 296, 700, 48), "Scenariusz 1", heading);
                 GUI.Label(
                     new Rect(104, 357, 470, 86),
-                    "Baza, kopalnia i dwa roboty. Zaprogramuj automatyczne wydobycie i dostawy iron.",
+                    "Baza, kopalnia i dwa roboty. Automatyzacja wydobycia iron.",
                     text);
                 if (GUI.Button(new Rect(630, 364, 220, 60), "Rozpocznij", button))
                     StartScenario();
@@ -151,32 +148,37 @@ namespace Protocol
             else
             {
                 GUI.Label(new Rect(80, 195, 800, 50), "Ustawienia", heading);
-                GUI.Label(new Rect(80, 270, 440, 32), "Głośność: " + Mathf.RoundToInt(volume * 100) + "%", text);
-                volume = GUI.HorizontalSlider(new Rect(525, 282, 350, 24), volume, 0, 1);
-                MusicSettingsControls.Draw(new Rect(80, 308, 795, 52), ref musicEnabled, ref musicVolume, text);
-                GUI.Label(new Rect(80, 368, 440, 32), "Czułość kamery: " + sensitivity.ToString("0.00") + "×", text);
-                sensitivity = GUI.HorizontalSlider(new Rect(525, 380, 350, 24), sensitivity, 0.25f, 2.5f);
+                GUI.Label(new Rect(80, 250, 225, 32), "Głośność", text);
+                volume = GUI.HorizontalSlider(new Rect(305, 262, 490, 24), volume, 0, 1);
+                GUI.Label(new Rect(805, 250, 70, 32), Mathf.RoundToInt(volume * 100) + "%", text);
+                MusicSettingsControls.Draw(new Rect(80, 298, 795, 32), ref musicEnabled, ref musicVolume, text);
+                GUI.Label(new Rect(80, 346, 225, 32), "Czułość kamery", text);
+                sensitivity = GUI.HorizontalSlider(new Rect(305, 358, 490, 24), sensitivity, 0.25f, 2.5f);
+                GUI.Label(new Rect(805, 346, 70, 32), sensitivity.ToString("0.00") + "×", text);
                 fullscreen = GUI.Toggle(
-                    new Rect(80, 410, 420, 36),
+                    new Rect(80, 394, 420, 36),
                     fullscreen,
-                    "  Pełny ekran",
+                    " Pełny ekran",
                     new GUIStyle(GUI.skin.toggle) { fontSize = 22 });
-                GUI.Label(new Rect(80, 459, 230, 40), "Rozdzielczość", text);
-                resolution.Draw(new Rect(305, 449, 300, 46), text, button);
-                fpsLimit = FrameRatePicker.Draw(new Rect(80, 497, 525, 32), fpsLimit, text);
-                if (GUI.Button(new Rect(630, 455, 250, 56), "Zastosuj", button))
+                GUI.Label(new Rect(80, 442, 225, 40), "Rozdzielczość", text);
+                resolution.Draw(new Rect(305, 434, 570, 46), text, button);
+                fpsLimit = FrameRatePicker.Draw(new Rect(80, 490, 795, 32), fpsLimit, text);
+                backgroundFpsLimit = FrameRatePicker.DrawBackground(new Rect(80, 530, 795, 32), backgroundFpsLimit, text);
+                if (GUI.Button(new Rect(630, 578, 250, 56), "Zastosuj", button))
                 {
                     GameSettings.Save(volume, sensitivity, fullscreen, resolution.Selected.x, resolution.Selected.y);
-                    FrameRatePolicy.Save(fpsLimit);
+                    FrameRatePolicy.Save(fpsLimit, backgroundFpsLimit);
                     GameSettings.SaveMusic(musicEnabled, musicVolume);
                     message = "Ustawienia zapisane.";
                 }
             }
 
-            if (Page != MenuPage.Home && GUI.Button(new Rect(80, 538, 240, 56), "Wróć", button))
+            float footerY = Page == MenuPage.Settings ? 578 : 538;
+            if (Page != MenuPage.Home && GUI.Button(new Rect(80, footerY, 240, 56), "Wróć", button))
                 ShowPage(MenuPage.Home);
             GUI.enabled = previousEnabled;
-            GUI.Label(new Rect(350, 546, 530, 60), IsLoading ? "Wczytywanie scenariusza…" : message, text);
+            GUI.Label(new Rect(350, footerY + 8, Page == MenuPage.Settings ? 260 : 530, 50),
+                IsLoading ? "Wczytywanie scenariusza…" : message, text);
             GUI.matrix = previousMatrix;
             GUI.color = previousColor;
         }

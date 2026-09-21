@@ -102,6 +102,8 @@ namespace Protocol.Editor
                 item.transform.localRotation = Quaternion.Euler(0, Range(random,0,360), 0);
                 item.transform.localScale = new Vector3(scale, scale * (isRock ? .7f : 1.3f), scale);
                 item.AddComponent<MeshFilter>().sharedMesh = isRock ? rocks[i % rocks.Length] : grasses;
+                if (isRock)
+                    ScenarioNavigation.EnsureBoulderCollider(item);
                 var renderer = item.AddComponent<MeshRenderer>();
                 renderer.sharedMaterial = isRock ? rock : i % 5 == 0 ? rose : teal;
                 renderer.shadowCastingMode = isRock ? ShadowCastingMode.On : ShadowCastingMode.Off;

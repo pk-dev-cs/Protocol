@@ -45,6 +45,20 @@ namespace Protocol
                     ignoreFromBuild = true
                 }
             };
+            var details = world.Find("Planet detail study");
+            if (details != null)
+                foreach (Transform detail in details)
+                {
+                    if (detail.name != "Basalt outcrop")
+                        continue;
+                    EnsureBoulderCollider(detail.gameObject);
+                    exclusions.Add(new NavMeshBuildMarkup
+                    {
+                        root = detail,
+                        overrideArea = true,
+                        area = 1 // Unity's built-in Not Walkable area.
+                    });
+                }
             Physics.SyncTransforms();
             NavMeshBuilder.CollectSources(world, ~0, NavMeshCollectGeometry.PhysicsColliders, 0, exclusions, sources);
             var settings = NavMesh.GetSettingsByIndex(0);
@@ -84,6 +98,20 @@ namespace Protocol
                 robot.GetComponent<RobotController>().InitializeMovement(movement, target);
                 index++;
             }
+        }
+
+        public static void EnsureBoulderCollider(GameObject boulder)
+        {
+            var filter = boulder.GetComponent<MeshFilter>();
+            if (filter == null || filter.sharedMesh == null)
+                return;
+            var collider = boulder.GetComponent<MeshCollider>();
+            if (collider == null)
+                collider = boulder.AddComponent<MeshCollider>();
+            collider.sharedMesh = filter.sharedMesh;
+            collider.convex = false;
+            collider.isTrigger = false;
+            collider.enabled = true;
         }
 
         private void OnDestroy()
