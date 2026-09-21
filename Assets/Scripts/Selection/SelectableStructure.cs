@@ -29,7 +29,7 @@ namespace Protocol
                 outline.widthMultiplier = .16f;
                 outline.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 outline.receiveShadows = false;
-                material = new Material(Shader.Find("Standard"));
+                material = new Material(Resources.Load<Shader>("FogSurface"));
                 material.color = new Color(.3f, 1, .65f);
                 material.EnableKeyword("_EMISSION");
                 material.SetColor("_EmissionColor", material.color);

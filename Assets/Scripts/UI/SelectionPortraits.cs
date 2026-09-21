@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 namespace Protocol
 {
@@ -80,8 +82,9 @@ namespace Protocol
                 {
                     list[i] = new Material(list[i])
                     {
-                        shader = Shader.Find("Standard")
+                        shader = Resources.Load<Shader>("FogSurface")
                     };
+                    list[i].SetFloat("_IgnoreWarFog", 1);
                     materials.Add(list[i]);
                 }
 
@@ -104,7 +107,7 @@ namespace Protocol
                 antiAliasing = 2
             };
             camera.targetTexture = texture;
-            camera.Render();
+            RenderPipeline.SubmitRenderRequest(camera, new UniversalRenderPipeline.SingleCameraRequest { destination = texture });
             camera.targetTexture = null;
             portraits.Add(source, texture);
             preview.SetActive(false);

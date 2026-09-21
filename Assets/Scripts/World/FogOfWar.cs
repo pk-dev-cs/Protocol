@@ -171,6 +171,8 @@ namespace Protocol
 
         private void OnDestroy()
         {
+            Shader.SetGlobalFloat("_ProtocolFogSize", 0);
+            Shader.SetGlobalTexture("_ProtocolFogMap", Texture2D.blackTexture);
             foreach (var material in materials)
                 if (material != null)
                     Destroy(material);

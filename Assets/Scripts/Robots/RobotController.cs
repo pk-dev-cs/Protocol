@@ -73,7 +73,7 @@ namespace Protocol
             selectionRing.positionCount = 48;
             selectionRing.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             selectionRing.receiveShadows = false;
-            ringMaterial = new Material(Shader.Find("Standard"));
+            ringMaterial = new Material(Resources.Load<Shader>("FogSurface"));
             var color = new Color(0.25f, 1f, 0.48f);
             ringMaterial.color = color;
             ringMaterial.EnableKeyword("_EMISSION");
