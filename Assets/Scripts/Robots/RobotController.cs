@@ -35,6 +35,8 @@ namespace Protocol
 
         private LineRenderer selectionRing;
         private Material ringMaterial;
+        private RobotTerrainPose terrainPose;
+        private Vector3 ringPosition = new Vector3(float.PositiveInfinity, 0, 0);
 
         public void InitializeLua(RobotLuaRuntime runtime) => LuaRuntime = runtime;
 
@@ -50,6 +52,9 @@ namespace Protocol
         {
             Movement = movement;
             MineDestination = mineDestination;
+            terrainPose = GetComponent<RobotTerrainPose>();
+            if (terrainPose == null)
+                terrainPose = gameObject.AddComponent<RobotTerrainPose>();
         }
 
         public void SetSelected(bool selected)
@@ -59,15 +64,16 @@ namespace Protocol
                 CreateSelectionRing();
             if (selectionRing != null)
                 selectionRing.enabled = selected;
+            if (selected)
+                UpdateSelectionRing();
         }
 
         private void CreateSelectionRing()
         {
             var ring = new GameObject("Selection ring");
             ring.transform.SetParent(transform, false);
-            ring.transform.localPosition = new Vector3(0, 0.09f, 0);
             selectionRing = ring.AddComponent<LineRenderer>();
-            selectionRing.useWorldSpace = false;
+            selectionRing.useWorldSpace = true;
             selectionRing.loop = true;
             selectionRing.widthMultiplier = 0.09f;
             selectionRing.positionCount = 48;
@@ -79,10 +85,26 @@ namespace Protocol
             ringMaterial.EnableKeyword("_EMISSION");
             ringMaterial.SetColor("_EmissionColor", color);
             selectionRing.sharedMaterial = ringMaterial;
+        }
+
+        private void LateUpdate()
+        {
+            if (IsSelected && (transform.position - ringPosition).sqrMagnitude > .000001f)
+                UpdateSelectionRing();
+        }
+
+        private void UpdateSelectionRing()
+        {
+            if (selectionRing == null)
+                return;
+            ringPosition = transform.position;
             for (int i = 0; i < selectionRing.positionCount; i++)
             {
                 float angle = i * Mathf.PI * 2f / selectionRing.positionCount;
-                selectionRing.SetPosition(i, new Vector3(Mathf.Cos(angle) * 1.45f, 0, Mathf.Sin(angle) * 1.45f));
+                Vector3 point = ringPosition + new Vector3(Mathf.Cos(angle) * 1.45f, 0, Mathf.Sin(angle) * 1.45f);
+                if (terrainPose != null && terrainPose.TryGetSurfacePoint(point, out Vector3 surface))
+                    point = surface;
+                selectionRing.SetPosition(i, point + Vector3.up * .1f);
             }
         }
 
