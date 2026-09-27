@@ -9,6 +9,12 @@ namespace Protocol
         private readonly List<Vector2Int> options = new List<Vector2Int>();
         private int index;
         public Vector2Int Selected => options[index];
+        public IReadOnlyList<Vector2Int> Options => options;
+        public int SelectedIndex
+        {
+            get => index;
+            set => index = Mathf.Clamp(value, 0, options.Count - 1);
+        }
 
 
         public ScreenResolutionPicker()

@@ -117,6 +117,8 @@ namespace Protocol
         private void OnGUI()
 
         {
+            if (ScenarioLoadingScreen.IsVisible) return;
+
             if (PauseMenu.IsOpen || (Event.current.isKey && Event.current.keyCode == KeyCode.Escape))
                 return;
             if (runtime == null)

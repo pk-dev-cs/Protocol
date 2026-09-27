@@ -53,6 +53,8 @@ namespace Protocol
 
         private void OnGUI()
         {
+            if (ScenarioLoadingScreen.IsVisible) return;
+
             GUI.depth = -100;
             var e = Event.current;
             if (e.type == EventType.KeyDown && e.keyCode == KeyCode.Escape)

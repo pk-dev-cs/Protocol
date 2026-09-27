@@ -49,6 +49,8 @@ namespace Protocol
 
         private void OnGUI()
         {
+            if (ScenarioLoadingScreen.IsVisible) return;
+
             Event e = Event.current;
             if (RobotProgrammingPanel.IsOpen || PauseMenu.IsOpen)
             {
@@ -126,6 +128,8 @@ namespace Protocol
 
         private void Update()
         {
+            if (ScenarioLoadingScreen.IsVisible) return;
+
             if (RobotProgrammingPanel.IsOpen || PauseMenu.IsOpen)
             {
                 ClearInput();

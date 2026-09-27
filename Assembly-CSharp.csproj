@@ -59,11 +59,14 @@
     <Compile Include="Assets\Scripts\Robots\RobotInventory.cs" />
     <Compile Include="Assets\Scripts\UI\MainMenu.cs" />
     <Compile Include="Assets\Scripts\UI\MusicPlaylist.cs" />
+    <Compile Include="Assets\Scripts\World\PlanetEnvironmentState.cs" />
+    <Compile Include="Assets\Scripts\UI\ScenarioLoadingScreen.cs" />
     <Compile Include="Assets\Scripts\UI\GameSettings.cs" />
     <Compile Include="Assets\Scripts\UI\MusicPlayer.cs" />
     <Compile Include="Assets\Scripts\Robots\RobotController.cs" />
     <Compile Include="Assets\Scripts\Lua\RobotLuaRuntime.cs" />
     <Compile Include="Assets\Scripts\Lua\LuaEditorLanguage.cs" />
+    <Compile Include="Assets\Scripts\UI\LoadingTopography.cs" />
     <Compile Include="Assets\Scripts\Movement\RobotMovement.cs" />
     <Compile Include="Assets\Scripts\Economy\HarvesterFactory.cs" />
     <Compile Include="Assets\Scripts\Movement\ScenarioNavigation.cs" />
@@ -78,20 +81,26 @@
     <Compile Include="Assets\Scripts\Selection\MoveCommandMarker.cs" />
     <Compile Include="Assets\Scripts\Economy\Mine.cs" />
     <Compile Include="Assets\Scripts\Economy\BaseBuilding.cs" />
+    <Compile Include="Assets\Scripts\UI\MainMenuView.cs" />
     <Compile Include="Assets\Scripts\UI\SelectionPortraits.cs" />
+    <Compile Include="Assets\Scripts\World\PlanetEnvironmentProfile.cs" />
     <Compile Include="Assets\Scripts\Economy\TreeResource.cs" />
+    <Compile Include="Assets\Scripts\UI\MainMenuPresentation.cs" />
     <Compile Include="Assets\Scripts\World\ScenarioBootstrap.cs" />
     <Compile Include="Assets\Scripts\World\FrameRatePolicy.cs" />
     <Compile Include="Assets\Scripts\World\AlienWorldLighting.cs" />
     <Compile Include="Assets\Scripts\Selection\SelectableStructure.cs" />
+    <Compile Include="Assets\Scripts\Robots\RobotEnergy.cs" />
     <Compile Include="Assets\Scripts\Selection\SelectionManager.cs" />
     <Compile Include="Assets\Scripts\Camera\RTSCameraController.cs" />
     <Compile Include="Assets\Scripts\Lua\RobotProgramStorage.cs" />
     <Compile Include="Assets\Scripts\UI\MinimapPanel.cs" />
     <Compile Include="Assets\Scripts\Lua\LuaCodeEditor.cs" />
+    <Compile Include="Assets\Scripts\World\PlanetEnvironmentSystem.cs" />
     <Compile Include="Assets\Scripts\UI\FrameRatePicker.cs" />
     <Compile Include="Assets\Scripts\Lua\RobotProgrammingPanel.cs" />
     <Compile Include="Assets\Scripts\World\FogOfWar.cs" />
+    <Compile Include="Assets\Scripts\UI\PlanetEnvironmentPanel.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Assets\Resources\AlienNightSky.shader" />

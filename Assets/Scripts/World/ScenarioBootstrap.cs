@@ -5,6 +5,8 @@ namespace Protocol
     /// <summary>Builds the primitive scenario and attaches the current stage's components.</summary>
     public sealed class ScenarioBootstrap : MonoBehaviour
     {
+        public bool IsInitialized { get; private set; }
+
         private void Awake()
 
         {
@@ -31,6 +33,11 @@ namespace Protocol
             gameObject.AddComponent<FogOfWar>().Initialize(transform.Find("World"));
             gameObject.AddComponent<SelectionPortraits>();
             gameObject.AddComponent<MinimapPanel>().Initialize();
+            var world = transform.Find("World");
+            var environment = world.GetComponent<PlanetEnvironmentSystem>();
+            if (environment == null) environment = world.gameObject.AddComponent<PlanetEnvironmentSystem>();
+            gameObject.AddComponent<PlanetEnvironmentPanel>().Initialize(environment);
+            IsInitialized = true;
         }
 
         private void PrepareEconomy()

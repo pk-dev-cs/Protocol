@@ -25,7 +25,7 @@ namespace Protocol
 
         public void Initialize(Camera camera) => worldCamera = camera;
 
-        private bool Blocked => RobotProgrammingPanel.IsOpen || PauseMenu.IsOpen;
+        private bool Blocked => ScenarioLoadingScreen.IsVisible || RobotProgrammingPanel.IsOpen || PauseMenu.IsOpen;
 
         public void SelectAtPointer(Vector2 guiPosition)
         {
@@ -138,6 +138,8 @@ namespace Protocol
 
         private void OnGUI()
         {
+            if (ScenarioLoadingScreen.IsVisible) return;
+
             GUI.depth = -5;
             if (Blocked)
             {
