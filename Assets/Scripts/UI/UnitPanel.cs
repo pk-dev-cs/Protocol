@@ -6,6 +6,9 @@ namespace Protocol
     {
         private SelectionManager selection;
         private ResourceManager resources;
+        private RobotEnergy displayedEnergy;
+        private int displayedEnergyPercent = -1;
+        private string energyLabel;
         private GUIStyle titleStyle, textStyle, buttonStyle, panelStyle;
         private static UnitPanel activePanel;
 
@@ -15,7 +18,7 @@ namespace Protocol
 
         private static Rect ResourceRect => new Rect(12 * Scale, 12 * Scale, 400 * Scale, 44 * Scale);
 
-        public static bool ContainsPointer(Vector2 position) => PauseMenu.IsOpen || RobotProgrammingPanel.IsOpen || (activePanel != null && activePanel.isActiveAndEnabled && (PanelRect.Contains(position) || (activePanel.resources != null && ResourceRect.Contains(position))));
+        public static bool ContainsPointer(Vector2 position) => PlanetEnvironmentPanel.ContainsPointer(position) || PauseMenu.IsOpen || RobotProgrammingPanel.IsOpen || (activePanel != null && activePanel.isActiveAndEnabled && (PanelRect.Contains(position) || (activePanel.resources != null && ResourceRect.Contains(position))));
 
         public void Initialize(SelectionManager manager) => selection = manager;
 
@@ -31,6 +34,8 @@ namespace Protocol
 
         private void OnGUI()
         {
+            if (ScenarioLoadingScreen.IsVisible) return;
+
             GUI.depth = 0;
             if (PauseMenu.IsOpen)
                 return;
@@ -143,12 +148,13 @@ namespace Protocol
                     new Rect(infoX, y + 68 * scale, infoWidth, 27 * scale),
                     $"Cargo: {robot.CurrentCargo} / {robot.CargoCapacity} {robot.Inventory.Kind.ToString().ToLowerInvariant()}",
                     textStyle);
+                DrawEnergy(new Rect(infoX, y + 99 * scale, infoWidth, 31 * scale), robot.Energy, scale);
                 bool panelEnabled = GUI.enabled;
                 GUI.enabled = panelEnabled && !RobotProgrammingPanel.IsOpen;
                 if (GUI.Button(new Rect(actionX, y, actionWidth, 40 * scale), "Oprogramowanie", buttonStyle))
                     GetComponent<RobotProgrammingPanel>().Open(robot.LuaRuntime);
                 bool wasEnabled = GUI.enabled;
-                GUI.enabled = wasEnabled && robot.Movement != null && !robot.Movement.IsMoving && (robot.LuaRuntime == null || robot.LuaRuntime.State != LuaProgramState.Running) && (robot.HarvestCycle == null || !robot.HarvestCycle.IsRunning);
+                GUI.enabled = wasEnabled && robot.Energy != null && !robot.Energy.IsDepleted && robot.Movement != null && !robot.Movement.IsMoving && (robot.LuaRuntime == null || robot.LuaRuntime.State != LuaProgramState.Running) && (robot.HarvestCycle == null || !robot.HarvestCycle.IsRunning);
                 if (GUI.Button(new Rect(actionX, y + 48 * scale, actionWidth, 40 * scale), "Jedź do kopalni (test)", buttonStyle))
                 {
                     if (robot.HarvestCycle != null)
@@ -165,7 +171,7 @@ namespace Protocol
                 GUI.enabled = wasEnabled;
                 if (robot.Movement != null)
                     GUI.Label(
-                        new Rect(infoX, y + 103 * scale, infoWidth, 65 * scale),
+                        new Rect(infoX, y + 137 * scale, infoWidth, 43 * scale),
                         robot.HarvestCycle != null && robot.HarvestCycle.Message.Length > 0 ? robot.HarvestCycle.Message : robot.Movement.Message,
                         textStyle);
                 if (robot.LuaRuntime != null)
@@ -176,8 +182,29 @@ namespace Protocol
             // SelectionManager owns world mouse input; this panel consumes only UI input.
             if (RobotProgrammingPanel.IsOpen)
                 return; // The modal owns its mouse events.
-            if (ContainsPointer(e.mousePosition) && (e.isMouse || e.type == EventType.ScrollWheel))
+            if (!PlanetEnvironmentPanel.ContainsPointer(e.mousePosition) && ContainsPointer(e.mousePosition) && (e.isMouse || e.type == EventType.ScrollWheel))
                 e.Use();
+        }
+
+        private void DrawEnergy(Rect rect, RobotEnergy energy, float scale)
+        {
+            if (energy == null) return;
+            int percent = Mathf.Clamp(Mathf.CeilToInt((float)energy.Percentage), 0, 100);
+            if (displayedEnergy != energy || displayedEnergyPercent != percent)
+            {
+                displayedEnergy = energy;
+                displayedEnergyPercent = percent;
+                energyLabel = "ENERGY    " + percent + "%";
+            }
+            GUI.Label(new Rect(rect.x, rect.y, rect.width, 24 * scale), energyLabel, textStyle);
+            Color previous = GUI.color;
+            var bar = new Rect(rect.x, rect.y + 26 * scale, rect.width, 4 * scale);
+            GUI.color = new Color(.15f, .22f, .25f);
+            GUI.DrawTexture(bar, Texture2D.whiteTexture);
+            bar.width *= energy.Normalized;
+            GUI.color = energy.Percentage <= 20 ? new Color(1, .6f, .24f) : new Color(.3f, .9f, .72f);
+            GUI.DrawTexture(bar, Texture2D.whiteTexture);
+            GUI.color = previous;
         }
 
         private static void DrawPortrait(Rect rect, SelectionPortraits portraits, Transform source)

@@ -54,7 +54,10 @@
   <ItemGroup>
     <Compile Include="Assets\Editor\StageOneSceneTools.cs" />
     <Compile Include="Assets\Editor\PlanetFogTools.cs" />
+    <Compile Include="Assets\Editor\PlanetEnvironmentChecks.cs" />
     <Compile Include="Assets\Editor\PlanetEnvironmentTools.cs" />
+    <Compile Include="Assets\Editor\MainMenuSceneTools.cs" />
+    <Compile Include="Assets\Editor\RobotEnergyChecks.cs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="UnityEngine">

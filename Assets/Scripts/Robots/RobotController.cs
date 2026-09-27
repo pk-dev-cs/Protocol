@@ -13,7 +13,9 @@ namespace Protocol
 
         public string DisplayName => gameObject.name;
 
-        public string Status => LuaRuntime != null && LuaRuntime.State == LuaProgramState.Error ? "Error" : LuaRuntime != null && LuaRuntime.ActionStatus.Length > 0 ? LuaRuntime.ActionStatus : HarvestCycle != null && (HarvestCycle.IsRunning || HarvestCycle.State == HarvestState.Error) ? HarvestCycle.State.ToString() : Movement != null && Movement.IsMoving ? "Moving" : Movement != null && Movement.Result == MovementResult.Failed ? "Error" : "Idle";
+        public string Status => Energy != null && Energy.IsDepleted ? "NoPower" : LuaRuntime != null && LuaRuntime.State == LuaProgramState.Error ? "Error" : LuaRuntime != null && LuaRuntime.ActionStatus.Length > 0 ? LuaRuntime.ActionStatus : HarvestCycle != null && (HarvestCycle.IsRunning || HarvestCycle.State == HarvestState.Error) ? HarvestCycle.State.ToString() : Movement != null && Movement.IsMoving ? "Moving" : Movement != null && Movement.Result == MovementResult.Failed ? "Error" : "Idle";
+
+        public RobotEnergy Energy { get; private set; }
 
         public RobotMovement Movement { get; private set; }
 
@@ -51,6 +53,7 @@ namespace Protocol
         public void InitializeMovement(RobotMovement movement, Transform mineDestination)
         {
             Movement = movement;
+            Energy = movement.GetComponent<RobotEnergy>();
             MineDestination = mineDestination;
             terrainPose = GetComponent<RobotTerrainPose>();
             if (terrainPose == null)

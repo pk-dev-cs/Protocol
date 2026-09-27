@@ -16,6 +16,8 @@ namespace Protocol
     public sealed class RobotMovement : MonoBehaviour
     {
         private NavMeshAgent agent;
+        private RobotEnergy energy;
+        private Vector3 lastEnergyPosition;
         private NavMeshObstacle parkedObstacle;
         private bool preparingPath;
         private int activateAfterFrame;
@@ -37,6 +39,11 @@ namespace Protocol
         public void Initialize(NavMeshAgent navAgent)
         {
             agent = navAgent;
+            energy = GetComponent<RobotEnergy>();
+            if (energy == null) energy = gameObject.AddComponent<RobotEnergy>();
+            energy.Depleted -= OnEnergyDepleted;
+            energy.Depleted += OnEnergyDepleted;
+            lastEnergyPosition = transform.position;
             agent.enabled = false;
             parkedObstacle = gameObject.AddComponent<NavMeshObstacle>();
             parkedObstacle.enabled = false;
@@ -53,6 +60,8 @@ namespace Protocol
         {
             if (IsMoving)
                 Cancel();
+            if (energy != null && energy.IsDepleted)
+                return Fail("Brak energii. Robot nie może jechać.");
             if (requestedTarget == null)
                 return Fail("Cel nie istnieje.");
             if (!isActiveAndEnabled || agent == null || parkedObstacle == null)
@@ -84,6 +93,11 @@ namespace Protocol
                 return;
             if (!IsMoving)
                 return;
+            if (energy != null && energy.IsDepleted)
+            {
+                OnEnergyDepleted();
+                return;
+            }
             if (target == null || !target.gameObject.activeInHierarchy)
             {
                 Fail("Cel został usunięty lub wyłączony.");
@@ -145,6 +159,28 @@ namespace Protocol
                 transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(-velocity), 250 * Time.deltaTime);
         }
 
+        private void LateUpdate()
+        {
+            Vector3 displacement = transform.position - lastEnergyPosition;
+            lastEnergyPosition = transform.position;
+            float elapsed = Time.deltaTime;
+            if (elapsed <= 0 || PauseMenu.IsOpen || energy == null || energy.IsDepleted || !IsMoving ||
+                preparingPath || agent == null || !agent.isActiveAndEnabled || !agent.isOnNavMesh || agent.pathPending)
+                return;
+            displacement.y = 0;
+            Vector3 velocity = agent.velocity;
+            velocity.y = 0;
+            const float minimumSpeed = .01f;
+            if (displacement.sqrMagnitude > minimumSpeed * minimumSpeed * elapsed * elapsed &&
+                velocity.sqrMagnitude > minimumSpeed * minimumSpeed)
+                energy.ConsumeMovement(elapsed);
+        }
+
+        private void OnEnergyDepleted()
+        {
+            if (IsMoving) Fail("Brak energii. Robot nie może jechać.");
+        }
+
         public void Cancel()
         {
             if (IsMoving)
@@ -156,6 +192,7 @@ namespace Protocol
             if (!NavMesh.SamplePosition(transform.position, out NavMeshHit start, 0.75f, agent.areaMask))
                 return Fail("Robot jest poza NavMesh.");
             transform.position = start.position;
+            lastEnergyPosition = transform.position;
             agent.enabled = true;
             if (!agent.isOnNavMesh)
                 return Fail("Robot nie może rozpocząć ruchu na NavMesh.");
@@ -214,6 +251,7 @@ namespace Protocol
 
         private void OnDestroy()
         {
+            if (energy != null) energy.Depleted -= OnEnergyDepleted;
             if (manualTarget != null)
                 Destroy(manualTarget.gameObject);
         }
