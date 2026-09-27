@@ -1,0 +1,49 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 670536634d737b6429cb3f30659b79af, type: 3}
+  m_Name: PlanetEnvironmentProfile
+  m_EditorClassIdentifier: Assembly-CSharp::Protocol.PlanetEnvironmentProfile
+  TemperatureBaseline: 0.42
+  TemperatureAmplitude: 0.24
+  TemperatureMinimum: 0.1
+  TemperatureMaximum: 0.85
+  ThermalLagHours: 2
+  PeakSolar: 1
+  DustSolarAttenuation: 0
+  Wind:
+    Baseline: 0.55
+    Minimum: 0.15
+    Maximum: 0.9
+    Amplitude: 0.25
+    PeriodSeconds: 300
+    NoiseOffset: 17.3
+  Dust:
+    Baseline: 0.35
+    Minimum: 0.15
+    Maximum: 0.6
+    Amplitude: 0.08
+    PeriodSeconds: 1200
+    NoiseOffset: 83.7
+  EMActivity:
+    Baseline: 0.18
+    Minimum: 0.1
+    Maximum: 0.26
+    Amplitude: 0.025
+    PeriodSeconds: 1800
+    NoiseOffset: 41.2
+  Radiation:
+    Baseline: 0.05
+    Minimum: 0.03
+    Maximum: 0.07
+    Amplitude: 0.005
+    PeriodSeconds: 7200
+    NoiseOffset: 112.8

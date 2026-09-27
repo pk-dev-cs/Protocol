@@ -15,6 +15,10 @@ namespace Protocol
         private GUIStyle clockStyle;
         private float nextLightScan;
 
+        public double ElapsedSimulationSeconds { get; private set; }
+
+        public static float GetSolarElevation(float timeOfDayHours) => -Mathf.Cos(timeOfDayHours / 24f * Mathf.PI * 2);
+
         public float NightAmount { get; private set; }
 
         public float TimeOfDayHours => phase * 24f;
@@ -41,6 +45,7 @@ namespace Protocol
         private void OnEnable()
         {
             phase = initialPhase;
+            ElapsedSimulationSeconds = 0;
             Configure(transform);
         }
 
@@ -48,6 +53,7 @@ namespace Protocol
         {
             if (!Application.isPlaying)
                 return;
+            ElapsedSimulationSeconds += Time.deltaTime;
             phase = Mathf.Repeat(phase + Time.deltaTime / Mathf.Max(30f, cycleDurationSeconds), 1f);
             ApplyLighting(phase);
             if (Time.time >= nextLightScan)
@@ -62,6 +68,8 @@ namespace Protocol
 
         private void OnGUI()
         {
+            if (ScenarioLoadingScreen.IsVisible) return;
+
             if (!Application.isPlaying || PauseMenu.IsOpen)
                 return;
             if (clockStyle == null)
@@ -142,8 +150,7 @@ namespace Protocol
 
         private void ApplyLighting(float value)
         {
-            float orbit = value * Mathf.PI * 2f;
-            float solarHeight = Mathf.Sin(orbit - Mathf.PI * .5f);
+            float solarHeight = GetSolarElevation(value * 24f);
             float daylight = Mathf.SmoothStep(0, 1, Mathf.InverseLerp(-.08f, .35f, solarHeight));
             float twilight = 1 - Mathf.SmoothStep(0, .35f, Mathf.Abs(solarHeight));
             NightAmount = 1 - daylight;
