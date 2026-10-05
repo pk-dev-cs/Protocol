@@ -36,7 +36,7 @@ namespace Protocol
 
         public void FocusOn(Vector3 position)
         {
-            if (PauseMenu.IsOpen || RobotProgrammingPanel.IsOpen)
+            if (PauseMenu.IsOpen)
                 return;
             focus = position;
             ClearInput();
@@ -52,7 +52,7 @@ namespace Protocol
             if (ScenarioLoadingScreen.IsVisible) return;
 
             Event e = Event.current;
-            if (RobotProgrammingPanel.IsOpen || PauseMenu.IsOpen)
+            if (RobotProgrammingPanel.HasEditorFocus || PauseMenu.IsOpen)
             {
                 ClearInput();
                 return;
@@ -130,7 +130,7 @@ namespace Protocol
         {
             if (ScenarioLoadingScreen.IsVisible) return;
 
-            if (RobotProgrammingPanel.IsOpen || PauseMenu.IsOpen)
+            if (RobotProgrammingPanel.HasEditorFocus || PauseMenu.IsOpen)
             {
                 ClearInput();
                 return;

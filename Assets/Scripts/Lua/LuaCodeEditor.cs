@@ -9,10 +9,28 @@ namespace Protocol
         private List<LuaApiSuggestion> matches = new List<LuaApiSuggestion>();
         private string highlighted;
         private int caret, replacementStart, replacementEnd, selected, firstRow, pendingCaret = -1;
+        private int selectionCaret, pendingSelection = -1;
         private bool dismissed;
         private TextEditor textEditor;
         private int inputControl;
         private bool suppressReturnCharacter, suppressTabCharacter;
+        private readonly List<EditSnapshot> undoHistory = new List<EditSnapshot>();
+        private readonly List<EditSnapshot> redoHistory = new List<EditSnapshot>();
+        private const int HistoryLimit = 100;
+
+        private struct EditSnapshot
+        {
+            public string Code;
+            public int Cursor;
+            public int Selection;
+
+            public EditSnapshot(string code, int cursor, int selection)
+            {
+                Code = code;
+                Cursor = cursor;
+                Selection = selection;
+            }
+        }
 
         public bool IsBaseContext { get; set; }
 
@@ -24,6 +42,14 @@ namespace Protocol
 
         public bool PopupOpen => matches.Count > 0 && !dismissed;
 
+        public bool HasKeyboardFocus => inputControl != 0 && GUIUtility.keyboardControl == inputControl;
+
+        public void ReleaseFocus()
+        {
+            if (HasKeyboardFocus) GUIUtility.keyboardControl = 0;
+            Dismiss();
+        }
+
         public Font CodeFont => font ?? (font = Font.CreateDynamicFontFromOSFont(new[] { "Consolas", "Courier New", "monospace" }, 16));
 
         public void Reset()
@@ -32,10 +58,14 @@ namespace Protocol
             dismissed = false;
             highlighted = null;
             caret = 0;
+            selectionCaret = 0;
             pendingCaret = -1;
+            pendingSelection = -1;
             textEditor = null;
             inputControl = 0;
             suppressReturnCharacter = suppressTabCharacter = false;
+            undoHistory.Clear();
+            redoHistory.Clear();
         }
 
         public void Dismiss()
@@ -109,6 +139,20 @@ namespace Protocol
 
             if (!enter)
                 suppressReturnCharacter = false;
+            if (e.control && !e.alt && e.keyCode == KeyCode.Z)
+            {
+                code = e.shift ? Redo(code) : Undo(code);
+                e.Use();
+                return code;
+            }
+
+            if (e.control && !e.alt && e.keyCode == KeyCode.Y)
+            {
+                code = Redo(code);
+                e.Use();
+                return code;
+            }
+
             if (e.control && (e.keyCode == KeyCode.Space || e.character == ' '))
             {
                 OpenCompletion(code, caret);
@@ -193,6 +237,8 @@ namespace Protocol
 
         private string Indent(string code, bool remove)
         {
+            string original = code;
+            int originalCursor = caret;
             int selection = textEditor == null ? caret : Mathf.Clamp(textEditor.selectIndex, 0, code.Length);
             int start = Mathf.Min(caret, selection), end = Mathf.Max(caret, selection);
             if (!remove && start == end)
@@ -245,6 +291,9 @@ namespace Protocol
                 textEditor.cursorIndex = textEditor.selectIndex = caret;
             }
 
+            if (code != original)
+                RecordEdit(original, originalCursor, selection);
+
             return code;
         }
 
@@ -255,6 +304,9 @@ namespace Protocol
 
         private string Accept(string code)
         {
+            string original = code;
+            int originalCursor = textEditor == null ? caret : textEditor.cursorIndex;
+            int originalSelection = textEditor == null ? caret : textEditor.selectIndex;
             string inserted = LuaEditorLanguage.Insert(code, replacementStart, replacementEnd, matches[selected], out int insertionCaret);
             if (inserted.Length > RobotLuaRuntime.MaxCodeLength)
             {
@@ -273,7 +325,68 @@ namespace Protocol
 
             matches.Clear();
             dismissed = true;
+            RecordEdit(original, originalCursor, originalSelection);
             return code;
+        }
+
+        private void RecordEdit(string code, int cursor, int selection)
+        {
+            if (undoHistory.Count > 0)
+            {
+                EditSnapshot last = undoHistory[undoHistory.Count - 1];
+                if (last.Code == code && last.Cursor == cursor && last.Selection == selection)
+                    return;
+            }
+
+            undoHistory.Add(new EditSnapshot(code, cursor, selection));
+            if (undoHistory.Count > HistoryLimit)
+                undoHistory.RemoveAt(0);
+            redoHistory.Clear();
+        }
+
+        private string Undo(string code)
+        {
+            if (undoHistory.Count == 0)
+                return code;
+            PushHistory(redoHistory, new EditSnapshot(code, CurrentCursor(code), CurrentSelection(code)));
+            EditSnapshot snapshot = undoHistory[undoHistory.Count - 1];
+            undoHistory.RemoveAt(undoHistory.Count - 1);
+            return Restore(snapshot);
+        }
+
+        private string Redo(string code)
+        {
+            if (redoHistory.Count == 0)
+                return code;
+            PushHistory(undoHistory, new EditSnapshot(code, CurrentCursor(code), CurrentSelection(code)));
+            EditSnapshot snapshot = redoHistory[redoHistory.Count - 1];
+            redoHistory.RemoveAt(redoHistory.Count - 1);
+            return Restore(snapshot);
+        }
+
+        private static void PushHistory(List<EditSnapshot> history, EditSnapshot snapshot)
+        {
+            history.Add(snapshot);
+            if (history.Count > HistoryLimit)
+                history.RemoveAt(0);
+        }
+
+        private int CurrentCursor(string code) => textEditor == null ? Mathf.Clamp(caret, 0, code.Length) : Mathf.Clamp(textEditor.cursorIndex, 0, code.Length);
+
+        private int CurrentSelection(string code) => textEditor == null ? Mathf.Clamp(selectionCaret, 0, code.Length) : Mathf.Clamp(textEditor.selectIndex, 0, code.Length);
+
+        private string Restore(EditSnapshot snapshot)
+        {
+            caret = pendingCaret = Mathf.Clamp(snapshot.Cursor, 0, snapshot.Code.Length);
+            selectionCaret = pendingSelection = Mathf.Clamp(snapshot.Selection, 0, snapshot.Code.Length);
+            if (textEditor != null)
+            {
+                textEditor.text = snapshot.Code;
+                textEditor.cursorIndex = caret;
+                textEditor.selectIndex = selectionCaret;
+            }
+            Dismiss();
+            return snapshot.Code;
         }
 
         public string Draw(
@@ -318,6 +431,7 @@ namespace Protocol
 
             bool typedDot = Event.current.type == EventType.KeyDown && Event.current.character == '.';
             int previousCursor = caret;
+            int previousSelection = selectionCaret;
             GUI.SetNextControlName("RobotLuaCode");
             string edited = GUI.TextArea(rect, code, RobotLuaRuntime.MaxCodeLength, input);
             if (Event.current.type == EventType.Repaint)
@@ -384,11 +498,16 @@ namespace Protocol
                 textEditor = (TextEditor)GUIUtility.GetStateObject(typeof(TextEditor), GUIUtility.keyboardControl);
                 if (pendingCaret >= 0)
                 {
-                    textEditor.cursorIndex = textEditor.selectIndex = Mathf.Min(pendingCaret, edited.Length);
+                    textEditor.cursorIndex = Mathf.Min(pendingCaret, edited.Length);
+                    textEditor.selectIndex = Mathf.Min(pendingSelection < 0 ? pendingCaret : pendingSelection, edited.Length);
                     pendingCaret = -1;
+                    pendingSelection = -1;
                 }
 
                 caret = Mathf.Clamp(textEditor.cursorIndex, 0, edited.Length);
+                selectionCaret = Mathf.Clamp(textEditor.selectIndex, 0, edited.Length);
+                if (edited != code)
+                    RecordEdit(code, previousCursor, previousSelection);
                 AfterEdit(code, edited, caret, typedDot, previousCursor);
                 if (textEditor.cursorIndex != textEditor.selectIndex)
                     matches.Clear();
