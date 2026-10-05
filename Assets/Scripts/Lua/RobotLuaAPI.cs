@@ -16,17 +16,21 @@ namespace Protocol
             Returning,
             Depositing,
             Waiting,
-            Chopping
+            Chopping,
+            MovingToStation,
+            Charging
         }
 
         private readonly RobotController robot;
         private readonly Script script;
         private readonly Dictionary<Table, Mine> mines = new Dictionary<Table, Mine>();
         private readonly Dictionary<Table, TreeResource> trees = new Dictionary<Table, TreeResource>();
+        private readonly Dictionary<Table, ChargingStationStructure> stations = new Dictionary<Table, ChargingStationStructure>();
         private TreeResource reservedTree, activeTree;
         private Action pending;
         private Mine activeMine;
         private BaseBuilding activeBase;
+        private ChargingStationStructure activeStation;
         private float elapsed, waitSeconds;
         private string callingLocation = "";
         public string PendingLocation { get; private set; } = "";
@@ -107,9 +111,51 @@ namespace Protocol
                 trees.Add(handle, nearest);
                 return DynValue.NewTable(handle);
             }));
+            table.Set("getBatteryPercent", Callback(args =>
+            {
+                Count(args, 0, "getBatteryPercent");
+                return DynValue.NewNumber(robot.Energy.Percentage);
+            }));
+            table.Set("findNearestChargingStation", Callback(args =>
+            {
+                Count(args, 0, "findNearestChargingStation");
+                ChargingStationStructure nearest = null;
+                float distance = float.PositiveInfinity;
+                var fog = robot.transform.root.GetComponent<FogOfWar>();
+                foreach (var candidate in robot.transform.root.GetComponentsInChildren<ChargingStationStructure>())
+                {
+                    if (!candidate.IsAvailable ||
+                        (fog != null && !fog.IsExplored(candidate.transform.position)) ||
+                        !candidate.TryFindDock(robot.transform.position, out _)) continue;
+                    float candidateDistance = (candidate.transform.position - robot.transform.position).sqrMagnitude;
+                    if (candidateDistance >= distance) continue;
+                    nearest = candidate;
+                    distance = candidateDistance;
+                }
+                if (nearest == null) return DynValue.Nil;
+                foreach (var entry in stations)
+                    if (entry.Value == nearest) return DynValue.NewTable(entry.Key);
+                var handle = new Table(script);
+                handle.Set("name", DynValue.NewString(nearest.name));
+                stations.Add(handle, nearest);
+                return DynValue.NewTable(handle);
+            }));
+            table.Set("charge", Callback(args =>
+            {
+                Count(args, 1, "charge");
+                if (robot.UnitType != "Harvester") throw Error("charge", "ładowanie wymaga Harvestera.");
+                activeStation = ResolveStation(args[0], "charge");
+                if (robot.Energy.Percentage >= 100) return DynValue.Nil;
+                var charging = robot.GetComponent<RobotCharging>();
+                if (charging == null || !charging.TryBegin(activeStation, true))
+                    throw Error("charge", "nie można rozpocząć ładowania w tej stacji.");
+                Begin(Action.Charging);
+                return Yield();
+            }));
             table.Set("chop", Callback(args =>
             {
                 Count(args, 1, "chop");
+                if (robot.UnitType != "Harvester") throw new ScriptRuntimeException("Wycinka wymaga Harvestera.");
                 activeTree = ResolveTree(args[0]);
                 if (!activeTree.CanChop(robot))
                     throw Error("chop", "robot musi dotrzeć do drzewa.");
@@ -122,6 +168,18 @@ namespace Protocol
             {
                 Count(args, 1, "moveTo");
                 activeTree = null;
+                if (args[0].Type == DataType.Table && stations.ContainsKey(args[0].Table))
+                {
+                    activeStation = ResolveStation(args[0], "moveTo");
+                    if (!activeStation.TryFindDock(robot.transform.position, out var dock))
+                        throw Error("moveTo", "brak dostępnej drogi do stacji ładowania.");
+                    if (Vector3.Distance(robot.transform.position, dock) <= 1.5f)
+                        return DynValue.Nil;
+                    if (!robot.Movement.MoveTo(dock))
+                        throw Error("moveTo", "brak dostępnej drogi do stacji ładowania.");
+                    Begin(Action.MovingToStation);
+                    return Yield();
+                }
                 if (args[0].Type == DataType.Table && trees.ContainsKey(args[0].Table))
                 {
                     activeTree = ResolveTree(args[0]);
@@ -140,6 +198,7 @@ namespace Protocol
             table.Set("mine", Callback(args =>
             {
                 Count(args, 1, "mine");
+                if (robot.UnitType != "Harvester") throw new ScriptRuntimeException("Wydobycie wymaga Harvestera.");
                 activeMine = ResolveMine(args[0], "mine");
                 if (!activeMine.CanMine(robot))
                     throw Error("mine", "robot musi najpierw dotrzeć do kopalni.");
@@ -203,25 +262,39 @@ namespace Protocol
             if (!IsPending)
                 return true;
             EnsureRobotAvailable();
-            elapsed += deltaTime;
+            if (deltaTime <= 0) return false;
+            if (pending != Action.Mining && pending != Action.Chopping) elapsed += deltaTime;
             switch (pending)
             {
                 case Action.Moving:
                 case Action.Returning:
+                case Action.MovingToStation:
                     if (pending == Action.Moving && (activeMine == null || !activeMine.isActiveAndEnabled) && (activeTree == null || !activeTree.Available))
                         throw Error("moveTo", "kopalnia przestała istnieć lub została wyłączona.");
+                    if (pending == Action.MovingToStation && (activeStation == null || !activeStation.isActiveAndEnabled))
+                        throw Error("moveTo", "stacja ładowania przestała istnieć lub została wyłączona.");
                     if (pending == Action.Returning && (activeBase == null || !activeBase.isActiveAndEnabled))
                         throw Error("returnToBase", "baza przestała istnieć lub została wyłączona.");
                     if (robot.Movement.IsMoving)
                         return false;
                     if (robot.Movement.Result != MovementResult.Arrived)
-                        throw Error(pending == Action.Moving ? "moveTo" : "returnToBase", robot.Movement.Message);
+                        throw Error(pending == Action.Returning ? "returnToBase" : "moveTo", robot.Movement.Message);
                     break;
+                case Action.Charging:
+                    var charging = robot.GetComponent<RobotCharging>();
+                    if (robot.Energy.Percentage >= 100) break;
+                    if (charging == null || charging.Station != activeStation ||
+                        (!charging.IsCharging && !charging.IsTravelling))
+                        throw Error("charge", "ładowanie zostało przerwane.");
+                    return false;
                 case Action.Mining:
                     if (activeMine == null || !activeMine.CanMine(robot))
                         throw Error("mine", "kopalnia jest niedostępna lub poza zasięgiem.");
                     if (robot.Inventory.IsFull)
                         break;
+                    elapsed += (float)robot.Energy.ConsumeMiningTime(deltaTime);
+                    if (robot.Energy.IsDepleted && elapsed < activeMine.SecondsPerUnit)
+                        throw Error("mine", "brak energii do wydobycia.");
                     if (elapsed < activeMine.SecondsPerUnit)
                         return false;
                     elapsed -= activeMine.SecondsPerUnit;
@@ -235,6 +308,9 @@ namespace Protocol
                         break;
                     if (activeTree == null || !activeTree.CanChop(robot))
                         throw Error("chop", "drzewo jest niedostępne lub poza zasięgiem.");
+                    elapsed += (float)robot.Energy.ConsumeMiningTime(deltaTime);
+                    if (robot.Energy.IsDepleted && elapsed < .75f)
+                        throw Error("chop", "brak energii do wycinki.");
                     if (elapsed < .75f)
                         return false;
                     elapsed -= .75f;
@@ -261,7 +337,16 @@ namespace Protocol
             PendingLocation = "";
             activeMine = null;
             activeBase = null;
+            activeStation = null;
             return true;
+        }
+
+        private ChargingStationStructure ResolveStation(DynValue handle, string function)
+        {
+            if (handle.Type != DataType.Table || !stations.TryGetValue(handle.Table, out var station) ||
+                station == null || !station.isActiveAndEnabled)
+                throw Error(function, "oczekiwano stacji zwróconej przez findNearestChargingStation().");
+            return station;
         }
 
         private TreeResource ResolveTree(DynValue handle)
@@ -281,11 +366,14 @@ namespace Protocol
                 if (tree != null)
                     tree.Release(robot);
             reservedTree = activeTree = null;
-            if ((pending == Action.Moving || pending == Action.Returning) && robot != null && robot.Movement != null)
+            if ((pending == Action.Moving || pending == Action.Returning || pending == Action.MovingToStation) && robot != null && robot.Movement != null)
                 robot.Movement.Cancel();
+            if (pending == Action.Charging && robot != null)
+                robot.GetComponent<RobotCharging>()?.Cancel();
             pending = Action.None;
             activeMine = null;
             activeBase = null;
+            activeStation = null;
         }
 
         private void Begin(Action action)
