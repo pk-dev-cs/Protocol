@@ -33,7 +33,9 @@ namespace Protocol
             return false;
         }
 
-        public static RobotController Create(BaseBuilding home, Vector3 position, int number)
+        public static RobotController Create(BaseBuilding home, Vector3 position, int number) => Create(home, position, number, home.Recipe(RobotKind.Harvester));
+
+        public static RobotController Create(BaseBuilding home, Vector3 position, int number, UnitProductionRecipe recipe)
         {
             var root = home.transform.root;
             var world = home.transform.parent;
@@ -52,7 +54,7 @@ namespace Protocol
                 throw;
             }
 
-            string name = "Harvester-" + number.ToString("00");
+            string name = recipe.Kind + "-" + number.ToString("00");
             ScenarioBootstrap.BuildRobot(
                 name,
                 parent,
@@ -62,6 +64,7 @@ namespace Protocol
                 model.Find("Eye").GetComponent<Renderer>().sharedMaterial);
             var body = parent.GetChild(parent.childCount - 1);
             var robot = body.gameObject.AddComponent<RobotController>();
+            robot.InitializeType(recipe.Kind);
             var agent = body.gameObject.AddComponent<NavMeshAgent>();
             agent.radius = 1;
             agent.height = 2;
@@ -74,15 +77,36 @@ namespace Protocol
             movement.Initialize(agent);
             robot.InitializeMovement(movement, mineTarget);
             var inventory = body.gameObject.AddComponent<RobotInventory>();
-            var cycle = body.gameObject.AddComponent<RobotHarvestCycle>();
+            var cycle = recipe.Kind == RobotKind.Harvester ? body.gameObject.AddComponent<RobotHarvestCycle>() : null;
             robot.InitializeEconomy(inventory, cycle, baseTarget);
-            cycle.Initialize(robot, mine, home);
+            if (cycle != null) cycle.Initialize(robot, mine, home);
+            if (recipe.Kind == RobotKind.Harvester)
+            {
+                robot.Energy.ConfigurePower(recipe.BatteryKWh, recipe.MovementKW, recipe.ConstructionKW,
+                    world.GetComponent<AlienWorldLighting>(), recipe.MiningKW);
+                body.gameObject.AddComponent<RobotCharging>();
+            }
+            if (recipe.Kind == RobotKind.Assembler)
+            {
+                robot.Energy.ConfigurePower(recipe.BatteryKWh, recipe.MovementKW, recipe.ConstructionKW, world.GetComponent<AlienWorldLighting>());
+                body.gameObject.AddComponent<AssemblerConstruction>();
+                var arm = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                arm.name = "Construction arm";
+                arm.transform.SetParent(body, false);
+                arm.transform.localPosition = new Vector3(0, 1.65f, .1f);
+                arm.transform.localScale = new Vector3(.3f, 1.2f, .35f);
+                arm.transform.localRotation = Quaternion.Euler(0, 0, 35);
+                arm.GetComponent<Renderer>().sharedMaterial = model.Find("Eye").GetComponent<Renderer>().sharedMaterial;
+                Object.Destroy(arm.GetComponent<Collider>());
+            }
             var runtime = body.gameObject.AddComponent<RobotLuaRuntime>();
             runtime.LoadExample(0);
+            if (recipe.Kind == RobotKind.Assembler) runtime.SourceCode = "print(unitName .. ': ready')";
             runtime.InitializeSavedProgram("stage01-" + name);
             robot.InitializeLua(runtime);
             root.GetComponent<FogOfWar>()?.RefreshUnits();
             root.GetComponent<MinimapPanel>()?.Initialize();
+            root.GetComponent<SelectionPortraits>()?.Refresh();
             return robot;
         }
 
