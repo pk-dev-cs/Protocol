@@ -28,6 +28,8 @@ namespace Protocol
                 robot.GetComponent<RobotController>().InitializeLua(runtime);
             }
 
+            gameObject.AddComponent<RightHudPanels>();
+            gameObject.AddComponent<BuildingPlacement>();
             gameObject.AddComponent<RobotProgrammingPanel>();
             gameObject.AddComponent<PauseMenu>();
             gameObject.AddComponent<FogOfWar>().Initialize(transform.Find("World"));
@@ -37,6 +39,9 @@ namespace Protocol
             var environment = world.GetComponent<PlanetEnvironmentSystem>();
             if (environment == null) environment = world.gameObject.AddComponent<PlanetEnvironmentSystem>();
             gameObject.AddComponent<PlanetEnvironmentPanel>().Initialize(environment);
+#if UNITY_EDITOR
+            gameObject.AddComponent<PowerDebugPanel>().Initialize(this, GetComponentInChildren<ColonyPowerGrid>(), environment);
+#endif
             IsInitialized = true;
         }
 
@@ -47,13 +52,22 @@ namespace Protocol
             var mine = transform.Find("World/Mine").gameObject.AddComponent<Mine>();
             var baseBuilding = transform.Find("World/Base").gameObject.AddComponent<BaseBuilding>();
             baseBuilding.Initialize(resources);
+            var grid = baseBuilding.GetComponent<ColonyPowerGrid>();
+            if (grid == null) grid = baseBuilding.gameObject.AddComponent<ColonyPowerGrid>();
+            grid.Initialize(transform.Find("World").GetComponent<AlienWorldLighting>());
             var baseRuntime = baseBuilding.gameObject.AddComponent<RobotLuaRuntime>();
             baseRuntime.LoadExample(0);
             baseRuntime.InitializeSavedProgram("stage01-Base");
             int index = 0;
+            var harvesterRecipe = baseBuilding.Recipe(RobotKind.Harvester);
+            var worldClock = transform.Find("World").GetComponent<AlienWorldLighting>();
             foreach (Transform robotTransform in transform.Find("World/Robots"))
             {
                 var robot = robotTransform.GetComponent<RobotController>();
+                robot.Energy.ConfigurePower(harvesterRecipe.BatteryKWh, harvesterRecipe.MovementKW,
+                    harvesterRecipe.ConstructionKW, worldClock, harvesterRecipe.MiningKW);
+                if (robot.UnitType == "Harvester" && robot.GetComponent<RobotCharging>() == null)
+                    robot.gameObject.AddComponent<RobotCharging>();
                 var destination = new GameObject(robot.name + " - base destination").transform;
                 destination.SetParent(baseBuilding.transform, false);
                 destination.localPosition = new Vector3(index++ == 0 ? -1.3f : 1.3f, 0, -5);

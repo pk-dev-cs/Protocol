@@ -10,8 +10,8 @@ namespace Protocol
         private readonly string[] values = new string[6];
         private readonly float[] levels = new float[6];
         private PlanetEnvironmentSystem environment;
-        private bool open;
-        private float openness;
+        private bool open => RightHudPanels.IsRequested(RightHudPanel.Environment);
+        private float openness => RightHudPanels.Progress(RightHudPanel.Environment);
         private float nextRefresh;
         private Texture2D planetIcon;
         private GUIStyle headingStyle;
@@ -21,17 +21,16 @@ namespace Protocol
 
         public bool IsOpen => open;
         public Rect VisiblePanelRect => PanelRect;
-        private static float Scale => Mathf.Clamp(Mathf.Min(Screen.width / 1600f, Screen.height / 900f), .45f, 1.6f);
+        private static float Scale => RightHudPanels.Scale;
         private static float ClockScale => Mathf.Clamp(Screen.height / 900f, .7f, 1.5f);
         public static Rect IconRect => new Rect(Screen.width - 222 * ClockScale, 16 * ClockScale, 46 * ClockScale, 46 * ClockScale);
-        private bool Visible => !PauseMenu.IsOpen && !RobotProgrammingPanel.IsOpen && !ScenarioLoadingScreen.IsVisible;
+        private bool Visible => !PauseMenu.IsOpen && !ScenarioLoadingScreen.IsVisible;
         private Rect PanelRect
         {
             get
             {
                 float width = Screen.width * .2f;
-                float eased = Mathf.SmoothStep(0, 1, openness);
-                return new Rect(Screen.width - width * eased, 78 * ClockScale, width, 360 * Scale);
+                return RightHudPanels.SlideRect(RightHudPanel.Environment, width, 78 * ClockScale, 360 * Scale);
             }
         }
 
@@ -53,13 +52,12 @@ namespace Protocol
 
         public void Toggle()
         {
-            open = !open;
+            RightHudPanels.Toggle(RightHudPanel.Environment);
             if (open) CacheValues();
         }
 
         private void Update()
         {
-            openness = Mathf.MoveTowards(openness, open ? 1 : 0, Time.unscaledDeltaTime / .25f);
             if (openness > 0 && Visible && Time.unscaledTime >= nextRefresh)
             {
                 CacheValues();
@@ -103,8 +101,7 @@ namespace Protocol
             {
                 var panel = PanelRect;
                 float padding = 20 * Scale;
-                Fill(panel, new Color(.035f, .055f, .075f, .97f));
-                Fill(new Rect(panel.x, panel.y, 2 * Scale, panel.height), new Color(.25f, .72f, .65f, .8f));
+                RightHudPanels.DrawBackground(panel);
                 headingStyle.fontSize = Mathf.RoundToInt(16 * Scale);
                 labelStyle.fontSize = numberStyle.fontSize = Mathf.RoundToInt(16 * Scale);
                 GUI.Label(new Rect(panel.x + padding, panel.y + 16 * Scale, panel.width - padding * 2, 32 * Scale), "PLANET ENVIRONMENT", headingStyle);

@@ -10,10 +10,12 @@ namespace Protocol
         private string unitType = "Harvester";
 
         public string UnitType => unitType;
+        public void InitializeType(RobotKind kind) => unitType = kind.ToString();
 
         public string DisplayName => gameObject.name;
 
-        public string Status => Energy != null && Energy.IsDepleted ? "NoPower" : LuaRuntime != null && LuaRuntime.State == LuaProgramState.Error ? "Error" : LuaRuntime != null && LuaRuntime.ActionStatus.Length > 0 ? LuaRuntime.ActionStatus : HarvestCycle != null && (HarvestCycle.IsRunning || HarvestCycle.State == HarvestState.Error) ? HarvestCycle.State.ToString() : Movement != null && Movement.IsMoving ? "Moving" : Movement != null && Movement.Result == MovementResult.Failed ? "Error" : "Idle";
+        public string Status => GetComponent<RobotCharging>() is RobotCharging charge && charge.IsCharging ? "Charging"
+            : Energy != null && Energy.IsDepleted ? "NoPower" : LuaRuntime != null && LuaRuntime.State == LuaProgramState.Error ? "Error" : LuaRuntime != null && LuaRuntime.ActionStatus.Length > 0 ? LuaRuntime.ActionStatus : HarvestCycle != null && (HarvestCycle.IsRunning || HarvestCycle.State == HarvestState.Error) ? HarvestCycle.State.ToString() : Movement != null && Movement.IsMoving ? "Moving" : Movement != null && Movement.Result == MovementResult.Failed ? "Error" : "Idle";
 
         public RobotEnergy Energy { get; private set; }
 

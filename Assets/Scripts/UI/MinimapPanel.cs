@@ -79,7 +79,7 @@ namespace Protocol
             GUI.DrawTexture(new Rect(view.xMax - 1, view.y, 1, view.height), Texture2D.whiteTexture);
             GUI.color = old;
             var e = Event.current;
-            if (!PauseMenu.IsOpen && !RobotProgrammingPanel.IsOpen && rect.Contains(e.mousePosition))
+            if (!PauseMenu.IsOpen && !RobotProgrammingPanel.ContainsPointer(e.mousePosition) && rect.Contains(e.mousePosition))
             {
                 if ((e.type == EventType.MouseDown || e.type == EventType.MouseDrag) && e.button == 0)
                 {

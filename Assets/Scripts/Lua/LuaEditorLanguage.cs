@@ -49,13 +49,16 @@ namespace Protocol
         public static readonly LuaApiSuggestion[] Methods =
         {
             new LuaApiSuggestion("findNearestMine", "", "Zwraca najbliższą odkrytą kopalnię lub nil."),
-            new LuaApiSuggestion("moveTo", "mine", "Jedzie do kopalni lub drzewa i czeka na dotarcie."),
+            new LuaApiSuggestion("moveTo", "target", "Jedzie do kopalni, drzewa lub stacji ładowania i czeka na dotarcie."),
             new LuaApiSuggestion("mine", "mine", "Wydobywa iron do pełnego cargo. Wymaga obecności przy kopalni."),
             new LuaApiSuggestion("returnToBase", "", "Wraca do bazy i czeka na dotarcie."),
             new LuaApiSuggestion("depositResources", "", "Oddaje cargo. Wymaga obecności przy bazie."),
             new LuaApiSuggestion("getCargo", "", "Zwraca bieżącą ilość surowca w cargo."),
             new LuaApiSuggestion("getCargoCapacity", "", "Zwraca maksymalną pojemność cargo."),
             new LuaApiSuggestion("getPosition", "", "Zwraca tabelę pozycji: x, y, z."),
+            new LuaApiSuggestion("getBatteryPercent", "", "Zwraca poziom baterii robota w procentach."),
+            new LuaApiSuggestion("findNearestChargingStation", "", "Zwraca najbliższą odkrytą i dostępną stację lub nil."),
+            new LuaApiSuggestion("charge", "station", "Ładuje baterię w stacji i czeka na pełne naładowanie."),
             new LuaApiSuggestion("findNearestTree", "", "Zwraca i rezerwuje najbliższe odkryte, dostępne drzewo lub nil."),
             new LuaApiSuggestion("chop", "tree", "Zbiera wood do pełnego cargo lub wyczerpania drzewa. Najpierw moveTo(tree)."),
             new LuaApiSuggestion("wait", "seconds", "Czeka 0–3600 sekund czasu gry. Oddaje sterowanie."),
@@ -128,7 +131,7 @@ namespace Protocol
                     string word = code.Substring(start, i - start);
                     if (Keywords.Contains(word))
                         kind = LuaTokenKind.Keyword;
-                    else if (word == "robot" || word == "economy" || word == "buildHarvester" || word == "print" || word == "coroutine" || word == "math" || Array.Exists(
+                    else if (word == "robot" || word == "economy" || word == "buildHarvester" || word == "buildAssembler" || word == "print" || word == "coroutine" || word == "math" || Array.Exists(
                         Methods,
                         m => m.Name == word))
                         kind = LuaTokenKind.Api;
@@ -207,6 +210,8 @@ namespace Protocol
             var names = new HashSet<string>();
             if (baseContext && "buildHarvester".StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                 result.Add(new LuaApiSuggestion("buildHarvester", "", "Produkuje harvestera za 100 wood w 8 s.", true, ""));
+            if (baseContext && "buildAssembler".StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                result.Add(new LuaApiSuggestion("buildAssembler", "", "Produkuje Assemblera (domyślnie 150 wood, 12 s).", true, ""));
             foreach (var name in LocalNames(code, tokens, caret))
                 if (names.Add(name) && name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                     result.Add(new LuaApiSuggestion(name, "", "Zmienna lokalna zadeklarowana przed kursorem.", false));

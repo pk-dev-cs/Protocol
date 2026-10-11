@@ -7,21 +7,25 @@ namespace Protocol
     {
         readonly BaseBuilding home;
         bool building;
-        float elapsed;
 
-        public string Status => building ? "Produkcja harvestera" : "";
+        public string Status => building ? (home != null && home.HasPower ? home.ProductionName + " " + (home.ProductionProgress * 100).ToString("0") + "%" : "NO POWER — produkcja wstrzymana") : "";
 
         public BaseLuaAPI(BaseBuilding home, Script script)
         {
             this.home = home;
-            script.Globals.Set("buildHarvester", DynValue.NewCallback((context, args) =>
+            RegisterProduction(script, "buildHarvester", RobotKind.Harvester);
+            RegisterProduction(script, "buildAssembler", RobotKind.Assembler);
+        }
+
+        private void RegisterProduction(Script script, string name, RobotKind kind)
+        {
+            script.Globals.Set(name, DynValue.NewCallback((context, args) =>
             {
                 if (args.Count != 0)
-                    throw new ScriptRuntimeException("buildHarvester() nie przyjmuje argumentów.");
-                if (!home.TryBeginProduction())
-                    throw new ScriptRuntimeException("Produkcja wymaga 100 wood i wolnej bazy.");
+                    throw new ScriptRuntimeException(name + "() nie przyjmuje argumentów.");
+                if (!home.TryBeginProduction(kind))
+                    throw new ScriptRuntimeException("Produkcja wymaga zasilania, " + home.Recipe(kind).WoodCost + " wood i wolnej bazy.");
                 building = true;
-                elapsed = 0;
                 return DynValue.NewYieldReq(new DynValue[0]);
             }));
         }
@@ -32,10 +36,7 @@ namespace Protocol
                 return true;
             if (home == null || !home.isActiveAndEnabled)
                 throw new ScriptRuntimeException("Baza jest niedostępna.");
-            elapsed += delta;
-            if (elapsed < BaseBuilding.ProductionSeconds)
-                return false;
-            home.CompleteProduction();
+            if (!home.AdvanceProduction(delta)) return false;
             building = false;
             return true;
         }

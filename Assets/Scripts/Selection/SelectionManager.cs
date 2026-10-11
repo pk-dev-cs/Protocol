@@ -16,6 +16,8 @@ namespace Protocol
 
         public SelectableStructure SelectedStructure { get; private set; }
 
+        public event System.Action SelectionChanged;
+
         private bool dragging;
         private Vector2 dragStart, dragEnd;
 
@@ -25,7 +27,7 @@ namespace Protocol
 
         public void Initialize(Camera camera) => worldCamera = camera;
 
-        private bool Blocked => ScenarioLoadingScreen.IsVisible || RobotProgrammingPanel.IsOpen || PauseMenu.IsOpen;
+        private bool Blocked => ScenarioLoadingScreen.IsVisible || PauseMenu.IsOpen;
 
         public void SelectAtPointer(Vector2 guiPosition)
         {
@@ -56,18 +58,26 @@ namespace Protocol
                 return;
             ClearSelection();
             if (structure == null || !structure.isActiveAndEnabled)
+            {
+                SelectionChanged?.Invoke();
                 return;
+            }
             var fog = GetComponent<FogOfWar>();
             if (fog != null && !fog.IsExplored(structure.transform.position))
+            {
+                SelectionChanged?.Invoke();
                 return;
+            }
             SelectedStructure = structure;
             structure.SetSelected(true);
+            SelectionChanged?.Invoke();
         }
 
         public void Select(RobotController robot)
         {
             ClearSelection();
             Add(robot);
+            SelectionChanged?.Invoke();
         }
 
         private void Add(RobotController robot)
@@ -102,6 +112,7 @@ namespace Protocol
                 if (p.z > 0 && !UnitPanel.ContainsPointer(screen) && rectangle.Contains(screen))
                     Add(robot);
             }
+            SelectionChanged?.Invoke();
         }
 
         public void MoveSelectedTo(Vector3 point)
@@ -118,6 +129,8 @@ namespace Protocol
                 if (!NavMesh.SamplePosition(destination, out NavMeshHit hit, 2, NavMesh.AllAreas))
                     continue;
                 robot.LuaRuntime?.StopProgram();
+                robot.GetComponent<RobotCharging>()?.Cancel();
+                robot.GetComponent<AssemblerConstruction>()?.Cancel();
                 robot.HarvestCycle?.CancelCycle();
                 robot.HarvestCycle?.ClearFeedback();
                 if (robot.Movement.MoveTo(hit.position))
@@ -148,6 +161,11 @@ namespace Protocol
             }
 
             var e = Event.current;
+            if (GetComponent<BuildingPlacement>()?.HandleWorldInput(e) == true)
+            {
+                CancelDrag();
+                return;
+            }
             if (e.type == EventType.MouseDown && e.button == 0 && !UnitPanel.ContainsPointer(e.mousePosition))
             {
                 dragging = true;
@@ -204,10 +222,12 @@ namespace Protocol
 
         private void Update()
         {
+            bool changed = false;
             if (SelectedStructure != null && !SelectedStructure.isActiveAndEnabled)
             {
                 SelectedStructure.SetSelected(false);
                 SelectedStructure = null;
+                changed = true;
             }
 
             if (Blocked)
@@ -218,7 +238,9 @@ namespace Protocol
                     if (selected[i] != null)
                         selected[i].SetSelected(false);
                     selected.RemoveAt(i);
+                    changed = true;
                 }
+            if (changed) SelectionChanged?.Invoke();
         }
 
         private void OnApplicationFocus(bool focus)
@@ -231,6 +253,7 @@ namespace Protocol
         {
             CancelDrag();
             ClearSelection();
+            SelectionChanged?.Invoke();
             if (moveMarker != null)
                 moveMarker.Hide();
         }

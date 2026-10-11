@@ -81,7 +81,8 @@ namespace Protocol
             "Błąd: nieistniejący cel",
             "Błąd: spam logu",
             "Błąd: dostęp do pliku",
-            "Automatyczna wycinka (wood)"
+            "Automatyczna wycinka (wood)",
+            "Ładowanie w stacji"
         };
         private static readonly string[] Examples =
         {
@@ -102,7 +103,8 @@ namespace Protocol
             "robot.moveTo(nil)",
             "while true do\n    print('spam')\nend",
             "io.open('test.txt', 'w')",
-            "while true do\n    local tree = robot.findNearestTree()\n    if tree ~= nil then\n        robot.moveTo(tree)\n        robot.chop(tree)\n        robot.returnToBase()\n        robot.depositResources()\n    else\n        robot.wait(1)\n    end\nend"
+            "while true do\n    local tree = robot.findNearestTree()\n    if tree ~= nil then\n        robot.moveTo(tree)\n        robot.chop(tree)\n        robot.returnToBase()\n        robot.depositResources()\n    else\n        robot.wait(1)\n    end\nend",
+            "if robot.getBatteryPercent() < 20 then\n    local station = robot.findNearestChargingStation()\n    if station ~= nil then\n        robot.moveTo(station)\n        robot.charge(station)\n        print('Bateria naładowana')\n    end\nend"
         };
 
         public void LoadExample(int index)
@@ -169,6 +171,8 @@ namespace Protocol
 
         public bool RunProgram()
         {
+            GetComponent<AssemblerConstruction>()?.Cancel();
+            GetComponent<RobotCharging>()?.Cancel();
             StopProgram();
             Output = Error = "";
             forcedYields = 0;

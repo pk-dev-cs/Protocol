@@ -26,6 +26,8 @@ namespace Protocol
             return portraits.TryGetValue(source, out var texture) ? texture : null;
         }
 
+        public void Refresh() => Start();
+
         private void Start()
         {
             var world = transform.Find("World");
@@ -59,6 +61,7 @@ namespace Protocol
 
         private void Render(Transform source, Camera camera)
         {
+            if (portraits.ContainsKey(source)) return;
             var preview = new GameObject("Portrait model");
             preview.transform.position = new Vector3(0, -1000, 0);
             var materials = new List<Material>();

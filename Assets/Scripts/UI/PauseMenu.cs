@@ -59,6 +59,13 @@ namespace Protocol
             var e = Event.current;
             if (e.type == EventType.KeyDown && e.keyCode == KeyCode.Escape)
             {
+                var placement = GetComponent<BuildingPlacement>();
+                if (!open && placement != null && placement.IsPlacing)
+                {
+                    placement.Cancel();
+                    e.Use();
+                    return;
+                }
                 if (RobotProgrammingPanel.DismissCompletion())
                 {
                     e.Use();

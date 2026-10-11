@@ -16,6 +16,7 @@ namespace Protocol
         private float nextLightScan;
 
         public double ElapsedSimulationSeconds { get; private set; }
+        public double GameHoursPerSimulationSecond => 24d / Mathf.Max(30f, cycleDurationSeconds);
 
         public static float GetSolarElevation(float timeOfDayHours) => -Mathf.Cos(timeOfDayHours / 24f * Mathf.PI * 2);
 

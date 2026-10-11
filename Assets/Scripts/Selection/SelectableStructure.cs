@@ -6,7 +6,9 @@ namespace Protocol
     {
         public bool IsMine => gameObject.name == "Mine";
 
-        public string DisplayName => IsMine ? "Kopalnia iron" : "Baza główna";
+        public string DisplayName => GetComponent<ConstructionSite>() is ConstructionSite site && site.Recipe != null
+            ? site.Recipe.DisplayName : GetComponent<ChargingStationStructure>() != null ? "Charging Station"
+            : GetComponent<SolarPanel>() != null ? "Solar Panel" : IsMine ? "Kopalnia iron" : "Baza główna";
 
         public string Description => IsMine ? "Złoże iron • niewyczerpane\nWydobycie: 1 iron / 0,75 s na robota." : "Dostawy iron i wood\nProgramowalna produkcja harvesterów.";
 

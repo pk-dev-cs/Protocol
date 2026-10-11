@@ -101,7 +101,13 @@ namespace Protocol
                     return;
                 }
 
-                elapsed += Time.deltaTime;
+                if (Time.deltaTime <= 0) return;
+                elapsed += (float)robot.Energy.ConsumeMiningTime(Time.deltaTime);
+                if (robot.Energy.IsDepleted && elapsed < mine.SecondsPerUnit)
+                {
+                    Fail("Brak energii do wydobycia.");
+                    return;
+                }
                 if (elapsed < mine.SecondsPerUnit)
                     return;
                 elapsed -= mine.SecondsPerUnit;
