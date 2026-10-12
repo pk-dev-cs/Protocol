@@ -33,6 +33,14 @@ namespace Protocol
             State = PlanetEnvironmentModel.Evaluate(profile, clock.TimeOfDayHours, clock.ElapsedSimulationSeconds);
         }
 
+        internal void RestoreProfile(string json)
+        {
+            if (ownsProfile && profile != null) Destroy(profile);
+            profile = ScriptableObject.CreateInstance<PlanetEnvironmentProfile>();
+            ownsProfile = true;
+            JsonUtility.FromJsonOverwrite(json, profile);
+        }
+
         private void OnDestroy()
         {
             if (ownsProfile) Destroy(profile);

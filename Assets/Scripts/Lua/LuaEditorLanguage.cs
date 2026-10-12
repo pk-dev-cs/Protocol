@@ -48,6 +48,8 @@ namespace Protocol
     {
         public static readonly LuaApiSuggestion[] Methods =
         {
+            new LuaApiSuggestion("findNearestDisabledRobot", "", "Zwraca rozładowanego robota do odzyskania. Wymaga Haulera."),
+            new LuaApiSuggestion("tow", "target", "Holuje robota do dostępnej stacji i czeka na przekazanie."),
             new LuaApiSuggestion("findNearestMine", "", "Zwraca najbliższą odkrytą kopalnię lub nil."),
             new LuaApiSuggestion("moveTo", "target", "Jedzie do kopalni, drzewa lub stacji ładowania i czeka na dotarcie."),
             new LuaApiSuggestion("mine", "mine", "Wydobywa iron do pełnego cargo. Wymaga obecności przy kopalni."),
@@ -131,7 +133,7 @@ namespace Protocol
                     string word = code.Substring(start, i - start);
                     if (Keywords.Contains(word))
                         kind = LuaTokenKind.Keyword;
-                    else if (word == "robot" || word == "economy" || word == "buildHarvester" || word == "buildAssembler" || word == "print" || word == "coroutine" || word == "math" || Array.Exists(
+                    else if (word == "robot" || word == "economy" || word == "buildHarvester" || word == "buildAssembler" || word == "buildHauler" || word == "print" || word == "coroutine" || word == "math" || Array.Exists(
                         Methods,
                         m => m.Name == word))
                         kind = LuaTokenKind.Api;
@@ -212,6 +214,8 @@ namespace Protocol
                 result.Add(new LuaApiSuggestion("buildHarvester", "", "Produkuje harvestera za 100 wood w 8 s.", true, ""));
             if (baseContext && "buildAssembler".StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                 result.Add(new LuaApiSuggestion("buildAssembler", "", "Produkuje Assemblera (domyślnie 150 wood, 12 s).", true, ""));
+            if (baseContext && "buildHauler".StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                result.Add(new LuaApiSuggestion("buildHauler", "", "Produkuje Haulera (domyślnie 200 wood, 16 s).", true, ""));
             foreach (var name in LocalNames(code, tokens, caret))
                 if (names.Add(name) && name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                     result.Add(new LuaApiSuggestion(name, "", "Zmienna lokalna zadeklarowana przed kursorem.", false));

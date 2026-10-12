@@ -16,6 +16,19 @@ namespace Protocol
     public sealed class RobotMovement : MonoBehaviour
     {
         private NavMeshAgent agent;
+        private HaulerTowing transportOwner;
+        public bool IsBeingTowed => transportOwner != null;
+        internal HaulerTowing TransportOwner => transportOwner;
+
+        internal void SetTransportOwner(HaulerTowing owner)
+        {
+            Cancel();
+            transportOwner = owner;
+            Park();
+            if (owner == null && NavMesh.SamplePosition(transform.position, out var hit, 3, NavMesh.AllAreas))
+                transform.position = hit.position;
+            lastEnergyPosition = transform.position;
+        }
         private RobotEnergy energy;
         private Vector3 lastEnergyPosition;
         private NavMeshObstacle parkedObstacle;
@@ -58,6 +71,7 @@ namespace Protocol
 
         public bool MoveTo(Transform requestedTarget)
         {
+            if (IsBeingTowed) return false;
             if (IsMoving)
                 Cancel();
             if (energy != null && energy.IsDepleted)
@@ -89,7 +103,7 @@ namespace Protocol
 
         private void Update()
         {
-            if (PauseMenu.IsOpen)
+            if (PauseMenu.IsOpen || GameSaveService.IsRestoring)
                 return;
             if (!IsMoving)
                 return;
@@ -164,7 +178,7 @@ namespace Protocol
             Vector3 displacement = transform.position - lastEnergyPosition;
             lastEnergyPosition = transform.position;
             float elapsed = Time.deltaTime;
-            if (elapsed <= 0 || PauseMenu.IsOpen || energy == null || energy.IsDepleted || !IsMoving ||
+            if (elapsed <= 0 || Time.timeScale <= 0 || PauseMenu.IsOpen || energy == null || energy.IsDepleted || !IsMoving ||
                 preparingPath || agent == null || !agent.isActiveAndEnabled || !agent.isOnNavMesh || agent.pathPending)
                 return;
             displacement.y = 0;
@@ -173,7 +187,11 @@ namespace Protocol
             const float minimumSpeed = .01f;
             if (displacement.sqrMagnitude > minimumSpeed * minimumSpeed * elapsed * elapsed &&
                 velocity.sqrMagnitude > minimumSpeed * minimumSpeed)
+                {
                 energy.ConsumeMovement(elapsed);
+                var towing = GetComponent<HaulerTowing>();
+                if (towing != null && towing.IsTransporting) energy.ConsumePower(towing.TowingKW, elapsed);
+            }
         }
 
         private void OnEnergyDepleted()
@@ -196,6 +214,13 @@ namespace Protocol
             agent.enabled = true;
             if (!agent.isOnNavMesh)
                 return Fail("Robot nie może rozpocząć ruchu na NavMesh.");
+            var robot = GetComponent<RobotController>();
+            if (robot != null && target == robot.BaseDestination)
+            {
+                var home = target.GetComponentInParent<BaseBuilding>();
+                if (home == null || !home.TryResolveReturnTarget(robot, agent, out _))
+                    return Fail("Brak dostępnego miejsca rozładunku przy bazie.");
+            }
             if (!NavMesh.SamplePosition(target.position, out NavMeshHit hit, 0.75f, agent.areaMask))
                 return Fail("Cel jest poza NavMesh.");
             var path = new NavMeshPath();
@@ -228,7 +253,7 @@ namespace Protocol
 
             agent.enabled = false;
             if (parkedObstacle != null)
-                parkedObstacle.enabled = true;
+                parkedObstacle.enabled = !IsBeingTowed;
         }
 
         private bool Fail(string message)
@@ -247,7 +272,28 @@ namespace Protocol
             Completed?.Invoke(result);
         }
 
-        private void OnDisable() => Cancel();
+        internal Vector3 SavedTarget => target != null ? target.position : destination;
+
+        internal void RestoreGameState(MovementResult result, string message, Vector3 point)
+        {
+            Park();
+            lastEnergyPosition = transform.position;
+            if (result == MovementResult.Moving)
+            {
+                if (!MoveTo(point)) throw new InvalidOperationException("Cannot restore movement: " + Message);
+            }
+            else
+            {
+                Result = result;
+                Message = message;
+            }
+        }
+
+        private void OnDisable()
+        {
+            if (transportOwner != null) transportOwner.Cancel();
+            Cancel();
+        }
 
         private void OnDestroy()
         {

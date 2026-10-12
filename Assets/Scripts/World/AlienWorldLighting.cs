@@ -67,6 +67,8 @@ namespace Protocol
             }
         }
 
+        internal void RefreshLighting() => ApplyLighting(phase);
+
         private void OnGUI()
         {
             if (ScenarioLoadingScreen.IsVisible) return;
@@ -85,8 +87,8 @@ namespace Protocol
             }
             float scale = Mathf.Clamp(Screen.height / 900f, .7f, 1.5f);
             clockStyle.fontSize = Mathf.RoundToInt(20 * scale);
-            GUI.Box(new Rect(Screen.width - 166 * scale, 16 * scale, 150 * scale, 46 * scale),
-                "CZAS  " + ClockText, clockStyle);
+            GUI.Box(new Rect(Screen.width - 110 * scale, 16 * scale, 94 * scale, 46 * scale),
+                ClockText, clockStyle);
         }
 
         private void OnDestroy()

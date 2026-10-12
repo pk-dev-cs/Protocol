@@ -67,7 +67,7 @@ namespace Protocol
         private void Update()
 
         {
-            if (PauseMenu.IsOpen)
+            if (PauseMenu.IsOpen || GameSaveService.IsRestoring)
                 return;
             if (!IsRunning)
                 return;

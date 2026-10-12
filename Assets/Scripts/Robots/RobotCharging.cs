@@ -22,13 +22,15 @@ namespace Protocol
         public bool TryBegin(ChargingStationStructure destination, bool preserveProgram = false)
         {
             var robot = GetComponent<RobotController>();
-            if (robot.UnitType != "Harvester" || Energy.Percentage >= 100 || destination == null) return false;
+            if (robot.Movement.IsBeingTowed || Energy.Percentage >= 100 || destination == null) return false;
             if (!preserveProgram) robot.LuaRuntime?.StopProgram();
             Cancel();
             if (!destination.TryReserve(this, out Vector3 dockPosition)) return false;
             station = destination;
             dock = dockPosition;
             robot.HarvestCycle?.CancelCycle();
+            robot.GetComponent<AssemblerConstruction>()?.Cancel();
+            robot.GetComponent<HaulerTowing>()?.Cancel();
             robot.Movement?.Cancel();
             if (Vector3.Distance(transform.position, dock) <= 1.5f)
             {
@@ -40,6 +42,25 @@ namespace Protocol
             if (Energy.IsDepleted || !robot.Movement.MoveTo(dock)) { Cancel(); return false; }
             travelling = true;
             Message = "Jazda do stacji";
+            return true;
+        }
+
+        internal bool ReserveForRecovery(ChargingStationStructure destination, Vector3 from, out Vector3 position)
+        {
+            position = default;
+            if (station != null || !destination.TryReserve(this, from, out position)) return false;
+            station = destination;
+            dock = position;
+            travelling = false;
+            Message = "Oczekiwanie na holowanie";
+            return true;
+        }
+
+        internal bool BeginAfterRecovery()
+        {
+            if (station == null || Vector3.Distance(transform.position, dock) > 4 ||
+                !station.BeginCharging(this)) return false;
+            Message = "Ładowanie";
             return true;
         }
 
@@ -62,7 +83,7 @@ namespace Protocol
 
         private void Update()
         {
-            if (station == null || PauseMenu.IsOpen) return;
+            if (station == null || PauseMenu.IsOpen || GameSaveService.IsRestoring) return;
             var movement = GetComponent<RobotMovement>();
             if (travelling)
             {

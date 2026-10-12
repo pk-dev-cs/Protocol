@@ -13,13 +13,14 @@ namespace Protocol
         [SerializeField, Min(0)] private double baseConsumptionKW = 10;
         private readonly Dictionary<UnityEngine.Object, Func<double>> producers = new Dictionary<UnityEngine.Object, Func<double>>();
         private readonly Dictionary<UnityEngine.Object, double> consumers = new Dictionary<UnityEngine.Object, double>();
+        private readonly Dictionary<UnityEngine.Object, double> storageCapacity = new Dictionary<UnityEngine.Object, double>();
         private readonly List<ChargingStationStructure> chargingStations = new List<ChargingStationStructure>();
         private bool allocatingCharging;
         private AlienWorldLighting clock;
 
-        public double BatteryCapacityKWh => batteryCapacityKWh;
+        public double BatteryCapacityKWh => batteryCapacityKWh + Sum(storageCapacity);
         public double StoredEnergyKWh => storedEnergyKWh;
-        public double BatteryPercent => 100 * storedEnergyKWh / batteryCapacityKWh;
+        public double BatteryPercent => 100 * storedEnergyKWh / BatteryCapacityKWh;
         public double TotalGenerationKW => Sum(producers);
         public double TotalConsumptionKW => FixedConsumptionKW + ChargingConsumptionKW;
         private double FixedConsumptionKW => baseConsumptionKW + Sum(consumers);
@@ -65,6 +66,12 @@ namespace Protocol
             }
             return total;
         }
+        public void RegisterStorage(UnityEngine.Object owner, double capacityKWh)
+        {
+            Set(storageCapacity, owner, capacityKWh);
+            storedEnergyKWh = Math.Min(storedEnergyKWh, BatteryCapacityKWh);
+        }
+
         public void SetConsumption(UnityEngine.Object owner, double powerKW) => Set(consumers, owner, powerKW);
         public void RegisterChargingStation(ChargingStationStructure station)
         {
@@ -82,6 +89,8 @@ namespace Protocol
         {
             producers.Remove(owner);
             consumers.Remove(owner);
+            storageCapacity.Remove(owner);
+            storedEnergyKWh = Math.Min(storedEnergyKWh, BatteryCapacityKWh);
             if (owner is ChargingStationStructure station) chargingStations.Remove(station);
         }
 
@@ -111,7 +120,7 @@ namespace Protocol
         {
             Validate(gameHours);
             double deliveredKWh = AllocateCharging(gameHours);
-            storedEnergyKWh = Math.Max(0, Math.Min(batteryCapacityKWh,
+            storedEnergyKWh = Math.Max(0, Math.Min(BatteryCapacityKWh,
                 storedEnergyKWh + (TotalGenerationKW - FixedConsumptionKW) * gameHours - deliveredKWh));
             if (storedEnergyKWh < 1e-9) storedEnergyKWh = 0;
             RefreshChargingAllocation();
@@ -158,7 +167,7 @@ namespace Protocol
             if (double.IsNaN(batteryCapacityKWh) || double.IsInfinity(batteryCapacityKWh)) batteryCapacityKWh = 100;
             batteryCapacityKWh = Math.Max(.01, batteryCapacityKWh);
             if (double.IsNaN(storedEnergyKWh) || double.IsInfinity(storedEnergyKWh)) storedEnergyKWh = batteryCapacityKWh;
-            storedEnergyKWh = Math.Max(0, Math.Min(batteryCapacityKWh, storedEnergyKWh));
+            storedEnergyKWh = Math.Max(0, Math.Min(BatteryCapacityKWh, storedEnergyKWh));
             if (double.IsNaN(baseConsumptionKW) || double.IsInfinity(baseConsumptionKW)) baseConsumptionKW = 10;
             baseConsumptionKW = Math.Max(0, baseConsumptionKW);
         }

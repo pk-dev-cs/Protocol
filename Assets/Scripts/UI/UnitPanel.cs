@@ -86,9 +86,13 @@ namespace Protocol
                 var solar = structure.GetComponent<SolarPanel>();
                 var site = structure.GetComponent<ConstructionSite>();
                 var station = structure.GetComponent<ChargingStationStructure>();
+                var storage = structure.GetComponent<BatteryStorage>();
                 if (grid != null) DrawBasePower(new Rect(infoX, y + 38 * scale, infoWidth, 140 * scale), grid, scale);
                 else if (site != null)
                     GUI.Label(new Rect(infoX, y + 42 * scale, infoWidth, 100 * scale), $"Budowa    {site.Progress:P0}", textStyle);
+                else if (storage != null)
+                    GUI.Label(new Rect(infoX, y + 42 * scale, infoWidth, 100 * scale),
+                        $"Capacity       +{storage.CapacityKWh:0.##} kWh\nConsumption    {storage.IdleConsumptionKW:0.##} kW\nStatus         {storage.Status}", textStyle);
                 else if (station != null)
                     GUI.Label(new Rect(infoX, y + 42 * scale, infoWidth, 100 * scale),
                         $"Idle            {station.IdleConsumptionKW:0.##} kW\nCharging    {station.CurrentChargingKW:0.##} kW\nConsumption   {station.TotalConsumptionKW:0.##} kW", textStyle);
@@ -104,7 +108,7 @@ namespace Protocol
                     GUI.enabled = enabled;
                     GUI.Label(
                         new Rect(actionX, y + 48 * scale, actionWidth, 110 * scale),
-                        "Harvester / Assembler\n" + structure.GetComponent<RobotLuaRuntime>()?.ActionStatus,
+                        "Harvester / Assembler / Hauler\n" + structure.GetComponent<RobotLuaRuntime>()?.ActionStatus,
                         textStyle);
                 }
 
@@ -177,6 +181,16 @@ namespace Protocol
                 DrawSoftwareButton(actionX, y, scale);
                 bool wasEnabled = GUI.enabled;
                 var construction = robot.GetComponent<AssemblerConstruction>();
+                var charging = robot.GetComponent<RobotCharging>();
+                var towing = robot.GetComponent<HaulerTowing>();
+                GUI.enabled = panelEnabled && charging != null && !robot.Movement.IsBeingTowed &&
+                    (charging.Station != null || robot.Energy.Percentage < 100);
+                if (GUI.Button(new Rect(actionX + 48 * scale, y, 90 * scale, 40 * scale),
+                    charging != null && charging.Station != null ? "Odłącz" : "Ładuj", buttonStyle))
+                {
+                    if (charging.Station != null) charging.Cancel();
+                    else charging.TryBeginNearest();
+                }
                 if (construction != null)
                 {
                     GUI.enabled = panelEnabled;
@@ -184,28 +198,31 @@ namespace Protocol
                 }
                 else
                 {
-                    var charging = robot.GetComponent<RobotCharging>();
-                    bool chargeEnabled = wasEnabled && charging != null &&
-                        (charging.Station != null || robot.Energy.Percentage < 100);
-                    GUI.enabled = chargeEnabled;
-                    if (GUI.Button(new Rect(actionX, y + 48 * scale, actionWidth * .49f, 40 * scale),
-                        charging != null && charging.Station != null ? "Odłącz" : "Ładuj", buttonStyle))
+                    if (towing != null)
                     {
-                        if (charging.Station != null) charging.Cancel();
-                        else charging.TryBeginNearest();
+                        GUI.enabled = panelEnabled && (!robot.Energy.IsDepleted || towing.IsBusy);
+                        if (GUI.Button(new Rect(actionX, y + 48 * scale, actionWidth, 40 * scale),
+                            towing.IsBusy ? "Anuluj Tow" : "Tow", buttonStyle))
+                        {
+                            if (towing.IsBusy) { robot.LuaRuntime?.StopProgram(); towing.Cancel(); }
+                            else selection.BeginTowCommand(towing);
+                        }
                     }
-                    GUI.enabled = wasEnabled && robot.UnitType == "Harvester" && robot.Energy != null && !robot.Energy.IsDepleted && robot.Movement != null && !robot.Movement.IsMoving && (robot.LuaRuntime == null || robot.LuaRuntime.State != LuaProgramState.Running) && (robot.HarvestCycle == null || !robot.HarvestCycle.IsRunning);
-                    if (GUI.Button(new Rect(actionX + actionWidth * .51f, y + 48 * scale, actionWidth * .49f, 40 * scale), "Kopalnia", buttonStyle))
+                    if (robot.UnitType == "Harvester")
                     {
-                        if (robot.HarvestCycle != null)
-                            robot.HarvestCycle.ClearFeedback();
-                        robot.Movement.MoveTo(robot.MineDestination);
-                    }
+                        GUI.enabled = wasEnabled && robot.UnitType == "Harvester" && robot.Energy != null && !robot.Energy.IsDepleted && robot.Movement != null && !robot.Movement.IsMoving && (robot.LuaRuntime == null || robot.LuaRuntime.State != LuaProgramState.Running) && (robot.HarvestCycle == null || !robot.HarvestCycle.IsRunning);
+                        if (GUI.Button(new Rect(actionX + actionWidth * .51f, y + 48 * scale, actionWidth * .49f, 40 * scale), "Kopalnia", buttonStyle))
+                        {
+                            if (robot.HarvestCycle != null)
+                                robot.HarvestCycle.ClearFeedback();
+                            robot.Movement.MoveTo(robot.MineDestination);
+                        }
 
-                    GUI.enabled = GUI.enabled && robot.HarvestCycle != null;
-                    if (GUI.Button(new Rect(actionX, y + 96 * scale, actionWidth, 40 * scale), "Zbierz i dostarcz (test)", buttonStyle))
-                    {
-                        robot.HarvestCycle.StartCycle();
+                        GUI.enabled = GUI.enabled && robot.HarvestCycle != null;
+                        if (GUI.Button(new Rect(actionX, y + 96 * scale, actionWidth, 40 * scale), "Zbierz i dostarcz (test)", buttonStyle))
+                        {
+                            robot.HarvestCycle.StartCycle();
+                        }
                     }
                 }
 
@@ -225,7 +242,7 @@ namespace Protocol
                     GUI.Label(new Rect(infoX, y + 150 * scale, infoWidth, 24 * scale),
                         $"Runtime  {ColonyPowerGrid.FormatDuration(robot.Energy.RuntimeHours)}", textStyle);
                 }
-                string feedback = construction != null && construction.Status.Length > 0
+                string feedback = towing != null && towing.Message.Length > 0 ? towing.Message : construction != null && construction.Status.Length > 0
                     ? construction.Status
                     : activeCharging != null && activeCharging.Message.Length > 0
                         ? activeCharging.Message
@@ -250,7 +267,7 @@ namespace Protocol
         {
             string[] rows =
             {
-                $"Battery       {grid.BatteryPercent:0}%",
+                $"Battery       {grid.BatteryPercent:0.#}%",
                 $"Stored        {grid.StoredEnergyKWh:0.##} / {grid.BatteryCapacityKWh:0.##} kWh",
                 $"Generation    {grid.TotalGenerationKW:0.##} kW",
                 $"Consumption   {grid.TotalConsumptionKW:0.##} kW",
@@ -272,13 +289,13 @@ namespace Protocol
                 if (GUI.Button(new Rect(x, y + 48 * scale, width, 40 * scale), "Anuluj budowę", buttonStyle)) builder.Cancel();
                 return;
             }
-            var kinds = new[] { ConstructionKind.SolarPanel, ConstructionKind.ChargingStation };
+            var kinds = new[] { ConstructionKind.SolarPanel, ConstructionKind.ChargingStation, ConstructionKind.BatteryStorage };
             for (int i = 0; i < kinds.Length; i++)
             {
                 var recipe = placement.Recipe(kinds[i]);
                 GUI.enabled = previous && resources != null && resources.Wood >= recipe.WoodCost &&
                     !builder.GetComponent<RobotEnergy>().IsDepleted;
-                if (GUI.Button(new Rect(x, y + (48 + i * 48) * scale, width, 40 * scale),
+                if (GUI.Button(new Rect(x, y + (48 + i * 30) * scale, width, 28 * scale),
                     recipe.DisplayName + " · " + recipe.WoodCost + " wood", buttonStyle)) placement.Begin(builder, kinds[i]);
             }
             GUI.enabled = previous;

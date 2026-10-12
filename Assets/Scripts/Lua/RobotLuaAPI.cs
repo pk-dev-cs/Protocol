@@ -18,7 +18,8 @@ namespace Protocol
             Waiting,
             Chopping,
             MovingToStation,
-            Charging
+            Charging,
+            Towing
         }
 
         private readonly RobotController robot;
@@ -26,6 +27,7 @@ namespace Protocol
         private readonly Dictionary<Table, Mine> mines = new Dictionary<Table, Mine>();
         private readonly Dictionary<Table, TreeResource> trees = new Dictionary<Table, TreeResource>();
         private readonly Dictionary<Table, ChargingStationStructure> stations = new Dictionary<Table, ChargingStationStructure>();
+        private readonly Dictionary<Table, RobotController> robots = new Dictionary<Table, RobotController>();
         private TreeResource reservedTree, activeTree;
         private Action pending;
         private Mine activeMine;
@@ -51,7 +53,7 @@ namespace Protocol
 
         {
             var table = new Table(script);
-            table.Set("findNearestMine", Callback(args =>
+            table.Set("findNearestMine", Callback("findNearestMine", args =>
             {
                 Count(args, 0, "findNearestMine");
                 Mine nearest = null;
@@ -81,7 +83,7 @@ namespace Protocol
                 mines.Add(handle, nearest);
                 return DynValue.NewTable(handle);
             }));
-            table.Set("findNearestTree", Callback(args =>
+            table.Set("findNearestTree", Callback("findNearestTree", args =>
             {
                 Count(args, 0, "findNearestTree");
                 TreeResource nearest = null;
@@ -111,12 +113,12 @@ namespace Protocol
                 trees.Add(handle, nearest);
                 return DynValue.NewTable(handle);
             }));
-            table.Set("getBatteryPercent", Callback(args =>
+            table.Set("getBatteryPercent", Callback("getBatteryPercent", args =>
             {
                 Count(args, 0, "getBatteryPercent");
                 return DynValue.NewNumber(robot.Energy.Percentage);
             }));
-            table.Set("findNearestChargingStation", Callback(args =>
+            table.Set("findNearestChargingStation", Callback("findNearestChargingStation", args =>
             {
                 Count(args, 0, "findNearestChargingStation");
                 ChargingStationStructure nearest = null;
@@ -140,10 +142,45 @@ namespace Protocol
                 stations.Add(handle, nearest);
                 return DynValue.NewTable(handle);
             }));
-            table.Set("charge", Callback(args =>
+            table.Set("findNearestDisabledRobot", Callback("findNearestDisabledRobot", args =>
+            {
+                Count(args, 0, "findNearestDisabledRobot");
+                var towing = robot.GetComponent<HaulerTowing>();
+                if (towing == null) throw Error("findNearestDisabledRobot", "wymaga Haulera.");
+                RobotController nearest = null;
+                float distance = float.PositiveInfinity;
+                var fog = robot.transform.root.GetComponent<FogOfWar>();
+                foreach (var candidate in robot.transform.root.GetComponentsInChildren<RobotController>())
+                {
+                    if (!towing.CanRecover(candidate) || (fog != null && !fog.IsExplored(candidate.transform.position))) continue;
+                    float separation = (candidate.transform.position - robot.transform.position).sqrMagnitude;
+                    if (separation >= distance) continue;
+                    nearest = candidate;
+                    distance = separation;
+                }
+                if (nearest == null) return DynValue.Nil;
+                foreach (var item in robots)
+                    if (item.Value == nearest) return DynValue.NewTable(item.Key);
+                var handle = new Table(script);
+                handle.Set("name", DynValue.NewString(nearest.DisplayName));
+                robots.Add(handle, nearest);
+                return DynValue.NewTable(handle);
+            }));
+            table.Set("tow", Callback("tow", args =>
+            {
+                Count(args, 1, "tow");
+                var towing = robot.GetComponent<HaulerTowing>();
+                if (towing == null || args[0].Type != DataType.Table ||
+                    !robots.TryGetValue(args[0].Table, out var target))
+                    throw Error("tow", "oczekiwano robota z findNearestDisabledRobot().");
+                if (!towing.TryBegin(target, true)) throw Error("tow", towing.Message);
+                Begin(Action.Towing);
+                return Yield();
+            }));
+            table.Set("charge", Callback("charge", args =>
             {
                 Count(args, 1, "charge");
-                if (robot.UnitType != "Harvester") throw Error("charge", "ładowanie wymaga Harvestera.");
+                if (robot.GetComponent<RobotCharging>() == null) throw Error("charge", "ładowanie jest niedostępne.");
                 activeStation = ResolveStation(args[0], "charge");
                 if (robot.Energy.Percentage >= 100) return DynValue.Nil;
                 var charging = robot.GetComponent<RobotCharging>();
@@ -152,7 +189,7 @@ namespace Protocol
                 Begin(Action.Charging);
                 return Yield();
             }));
-            table.Set("chop", Callback(args =>
+            table.Set("chop", Callback("chop", args =>
             {
                 Count(args, 1, "chop");
                 if (robot.UnitType != "Harvester") throw new ScriptRuntimeException("Wycinka wymaga Harvestera.");
@@ -164,7 +201,7 @@ namespace Protocol
                 Begin(Action.Chopping);
                 return Yield();
             }));
-            table.Set("moveTo", Callback(args =>
+            table.Set("moveTo", Callback("moveTo", args =>
             {
                 Count(args, 1, "moveTo");
                 activeTree = null;
@@ -195,7 +232,7 @@ namespace Protocol
                 BeginMove(MinePoint(mine), Action.Moving);
                 return Yield();
             }));
-            table.Set("mine", Callback(args =>
+            table.Set("mine", Callback("mine", args =>
             {
                 Count(args, 1, "mine");
                 if (robot.UnitType != "Harvester") throw new ScriptRuntimeException("Wydobycie wymaga Harvestera.");
@@ -207,14 +244,14 @@ namespace Protocol
                 Begin(Action.Mining);
                 return Yield();
             }));
-            table.Set("returnToBase", Callback(args =>
+            table.Set("returnToBase", Callback("returnToBase", args =>
             {
                 Count(args, 0, "returnToBase");
                 activeBase = Base();
                 BeginMove(robot.BaseDestination, Action.Returning);
                 return Yield();
             }));
-            table.Set("depositResources", Callback(args =>
+            table.Set("depositResources", Callback("depositResources", args =>
             {
                 Count(args, 0, "depositResources");
                 activeBase = Base();
@@ -223,17 +260,17 @@ namespace Protocol
                 Begin(Action.Depositing);
                 return Yield();
             }));
-            table.Set("getCargo", Callback(args =>
+            table.Set("getCargo", Callback("getCargo", args =>
             {
                 Count(args, 0, "getCargo");
                 return DynValue.NewNumber(robot.CurrentCargo);
             }));
-            table.Set("getCargoCapacity", Callback(args =>
+            table.Set("getCargoCapacity", Callback("getCargoCapacity", args =>
             {
                 Count(args, 0, "getCargoCapacity");
                 return DynValue.NewNumber(robot.CargoCapacity);
             }));
-            table.Set("getPosition", Callback(args =>
+            table.Set("getPosition", Callback("getPosition", args =>
             {
                 Count(args, 0, "getPosition");
                 Vector3 p = robot.transform.position;
@@ -243,7 +280,7 @@ namespace Protocol
                 result.Set("z", DynValue.NewNumber(p.z));
                 return DynValue.NewTable(result);
             }));
-            table.Set("wait", Callback(args =>
+            table.Set("wait", Callback("wait", args =>
             {
                 Count(args, 1, "wait");
                 if (args[0].Type != DataType.Number || double.IsNaN(args[0].Number) || double.IsInfinity(args[0].Number) || args[0].Number < 0 || args[0].Number > 3600)
@@ -279,6 +316,12 @@ namespace Protocol
                         return false;
                     if (robot.Movement.Result != MovementResult.Arrived)
                         throw Error(pending == Action.Returning ? "returnToBase" : "moveTo", robot.Movement.Message);
+                    break;
+                case Action.Towing:
+                    var towing = robot.GetComponent<HaulerTowing>();
+                    if (towing != null && towing.IsBusy) return false;
+                    if (towing == null || !towing.Succeeded)
+                        throw Error("tow", towing != null ? towing.Message : "holowanie niedostępne.");
                     break;
                 case Action.Charging:
                     var charging = robot.GetComponent<RobotCharging>();
@@ -370,6 +413,7 @@ namespace Protocol
                 robot.Movement.Cancel();
             if (pending == Action.Charging && robot != null)
                 robot.GetComponent<RobotCharging>()?.Cancel();
+            if (pending == Action.Towing && robot != null) robot.GetComponent<HaulerTowing>()?.Cancel();
             pending = Action.None;
             activeMine = null;
             activeBase = null;
@@ -424,7 +468,7 @@ namespace Protocol
                 throw Error(function, "nieprawidłowa liczba argumentów; użyj składni robot." + function + "(...).");
         }
 
-        private DynValue Callback(System.Func<CallbackArguments, DynValue> callback) => DynValue.NewCallback((context, args) =>
+        private DynValue Callback(string name, System.Func<CallbackArguments, DynValue> callback) => DynValue.NewCallback((context, args) =>
 
         {
             EnsureRobotAvailable();
@@ -442,7 +486,7 @@ namespace Protocol
 
             if (callingLocation.Length == 0)
                 callingLocation = robot.name + ".lua";
-            return callback(args);
+            return LuaSaveReplay.Invoke(script, "robot." + name, () => callback(args));
         });
         private void EnsureRobotAvailable()
         {

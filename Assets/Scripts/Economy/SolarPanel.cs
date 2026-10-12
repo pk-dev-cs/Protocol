@@ -9,7 +9,7 @@ namespace Protocol
         [SerializeField, Min(0)] private float maximumGenerationKW = 10;
         [SerializeField] private ColonyPowerGrid grid;
         [SerializeField] private PlanetEnvironmentSystem environment;
-        private Material frameMaterial, cellMaterial;
+
 
         public float MaximumGenerationKW => maximumGenerationKW;
         public double CurrentGenerationKW => isActiveAndEnabled && environment != null
@@ -57,11 +57,7 @@ namespace Protocol
             if (grid != null) grid.Unregister(this);
         }
 
-        private void OnDestroy()
-        {
-            if (frameMaterial != null) Destroy(frameMaterial);
-            if (cellMaterial != null) Destroy(cellMaterial);
-        }
+
 
         private void OnValidate()
         {
@@ -80,45 +76,39 @@ namespace Protocol
             return panel;
         }
 
-        private void BuildVisuals()
+        public void BuildVisuals()
         {
-            if (transform.Find("Solar array") != null) return;
-            var shader = Resources.Load<Shader>("FogSurface");
-            frameMaterial = new Material(shader) { name = "Solar frame", color = new Color(.2f, .25f, .29f) };
-            cellMaterial = new Material(shader) { name = "Solar cells", color = new Color(.035f, .12f, .24f) };
-            if (cellMaterial.HasProperty("_Smoothness")) cellMaterial.SetFloat("_Smoothness", .75f);
-            var visual = new GameObject("Solar array").transform;
-            visual.SetParent(transform, false);
-            Part(visual, "Foot", new Vector3(0, .15f, 0), new Vector3(3, .3f, 2), frameMaterial);
-            Part(visual, "Support", new Vector3(0, 1, 0), new Vector3(.45f, 1.5f, .45f), frameMaterial);
-            var rack = new GameObject("Tilted rack").transform;
-            rack.SetParent(visual, false);
-            rack.localPosition = new Vector3(0, 1.9f, 0);
-            rack.localRotation = Quaternion.Euler(24, 0, 0);
-            Part(rack, "Frame", Vector3.zero, new Vector3(5, .16f, 3.2f), frameMaterial);
-            for (int x = 0; x < 6; x++)
-                for (int z = 0; z < 4; z++)
-                    Part(rack, "Cell", new Vector3(-2.04f + x * .816f, .095f, -1.17f + z * .78f),
-                        new Vector3(.77f, .035f, .735f), cellMaterial);
-            var collider = gameObject.AddComponent<BoxCollider>();
-            collider.center = new Vector3(0, 1.3f, 0);
-            collider.size = new Vector3(5, 2.6f, 3.8f);
-            var obstacle = gameObject.AddComponent<UnityEngine.AI.NavMeshObstacle>();
+            if (transform.Find("Visuals") == null)
+            {
+                var prefab = Resources.Load<GameObject>("Buildings/SolarPanel");
+                if (prefab == null) throw new System.InvalidOperationException("Missing solar panel model");
+                var old = transform.Find("Solar array");
+                if (old != null)
+                {
+                    old.gameObject.SetActive(false);
+                    if (Application.isPlaying) Destroy(old.gameObject);
+                    else DestroyImmediate(old.gameObject);
+                }
+                GameObject model;
+#if UNITY_EDITOR
+                if (!Application.isPlaying)
+                    model = (GameObject)UnityEditor.PrefabUtility.InstantiatePrefab(prefab, transform);
+                else
+#endif
+                    model = Instantiate(prefab, transform, false);
+                model.name = "Visuals";
+                model.transform.localRotation = Quaternion.identity;
+            }
+            var collider = GetComponent<BoxCollider>();
+            if (collider == null) collider = gameObject.AddComponent<BoxCollider>();
+            collider.center = new Vector3(0, 1.7f, 0);
+            collider.size = new Vector3(5, 3.4f, 3.8f);
+            var obstacle = GetComponent<UnityEngine.AI.NavMeshObstacle>();
+            if (obstacle == null) obstacle = gameObject.AddComponent<UnityEngine.AI.NavMeshObstacle>();
             obstacle.shape = UnityEngine.AI.NavMeshObstacleShape.Box;
             obstacle.center = collider.center;
             obstacle.size = collider.size;
             obstacle.carving = true;
-        }
-
-        private static void Part(Transform parent, string name, Vector3 position, Vector3 size, Material material)
-        {
-            var part = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            part.name = name;
-            part.transform.SetParent(parent, false);
-            part.transform.localPosition = position;
-            part.transform.localScale = size;
-            part.GetComponent<Renderer>().sharedMaterial = material;
-            Destroy(part.GetComponent<Collider>());
         }
     }
 }

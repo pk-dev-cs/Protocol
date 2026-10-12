@@ -38,7 +38,7 @@ namespace Protocol
         {
             foreach (Transform child in transform)
             {
-                if (child.GetComponent<MeshRenderer>() == null && child.GetComponent<Light>() == null)
+                if (child.name != "Visuals" && child.GetComponent<MeshRenderer>() == null && child.GetComponent<Light>() == null)
                     continue;
                 bool known = false;
                 foreach (var part in parts)

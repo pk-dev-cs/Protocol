@@ -14,17 +14,6 @@ namespace Protocol
         {
             if (instance.valid)
                 return;
-            var barrier = world.Find("Navigation barrier");
-            if (barrier == null)
-            {
-                var obstacle = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                obstacle.name = "Navigation barrier";
-                obstacle.transform.SetParent(world, false);
-                obstacle.transform.localPosition = new Vector3(3, 1.2f, -2.5f);
-                obstacle.transform.localScale = new Vector3(1.4f, 2.4f, 6);
-                obstacle.GetComponent<Renderer>().sharedMaterial = world.Find("Base/Foundation").GetComponent<Renderer>().sharedMaterial;
-            }
-
             var robotRoot = world.Find("Robots");
             var sources = new List<NavMeshBuildSource>();
             var exclusions = new List<NavMeshBuildMarkup>

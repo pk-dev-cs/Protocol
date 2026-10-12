@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.AI;
 
 namespace Protocol
 {
@@ -12,15 +13,25 @@ namespace Protocol
         {
             Kind = RobotKind.Assembler, WoodCost = 150, DurationSeconds = 12
         };
+        [SerializeField] private UnitProductionRecipe hauler = new UnitProductionRecipe
+        {
+            Kind = RobotKind.Hauler, WoodCost = 200, DurationSeconds = 16
+        };
+        private int nextHauler = 1;
         private UnitProductionRecipe activeRecipe;
         private float productionElapsed;
+        private float deploymentRetrySeconds;
         private int paidWood;
         private int nextAssembler = 1;
         public float ProductionProgress => !IsProducing ? 0 : Mathf.Clamp01(productionElapsed / activeRecipe.DurationSeconds);
         public string ProductionName => IsProducing ? activeRecipe.Kind.ToString() : "";
-        public UnitProductionRecipe Recipe(RobotKind kind) => kind == RobotKind.Assembler ? assembler : harvester;
+        public UnitProductionRecipe Recipe(RobotKind kind) => kind == RobotKind.Hauler ? hauler : kind == RobotKind.Assembler ? assembler : harvester;
 
         public bool IsProducing { get; private set; }
+        public bool IsWaitingForDeployment { get; private set; }
+        public string ProductionStatus => !IsProducing ? "" : !HasPower ? "NO POWER — produkcja wstrzymana"
+            : IsWaitingForDeployment ? ProductionName + " 100% — oczekiwanie na wolne miejsce"
+            : ProductionName + " " + (ProductionProgress * 100).ToString("0") + "%";
         public ColonyPowerGrid PowerGrid => GetComponent<ColonyPowerGrid>();
         public bool HasPower => PowerGrid != null && PowerGrid.HasPower;
 
@@ -39,7 +50,9 @@ namespace Protocol
             activeRecipe.Kind = kind;
             paidWood = recipe.WoodCost;
             productionElapsed = 0;
+            deploymentRetrySeconds = 0;
             IsProducing = true;
+            IsWaitingForDeployment = false;
             PowerGrid.SetConsumption(this, activeRecipe.ProductionKW);
             return true;
         }
@@ -50,26 +63,38 @@ namespace Protocol
                 throw new System.ArgumentOutOfRangeException(nameof(simulationSeconds));
             if (!IsProducing) return true;
             if (!HasPower || simulationSeconds == 0) return false;
-            productionElapsed += simulationSeconds;
+            if (IsWaitingForDeployment)
+            {
+                deploymentRetrySeconds -= simulationSeconds;
+                if (deploymentRetrySeconds > 0) return false;
+            }
+            productionElapsed = Mathf.Min(activeRecipe.DurationSeconds, productionElapsed + simulationSeconds);
             if (productionElapsed < activeRecipe.DurationSeconds) return false;
-            CompleteProduction();
-            return true;
+            return CompleteProduction();
         }
 
-        public void CompleteProduction()
+        public bool CompleteProduction()
         {
             if (!IsProducing)
                 throw new System.InvalidOperationException("Brak produkcji.");
             if (!HasPower) throw new System.InvalidOperationException("NO POWER");
             if (productionElapsed < activeRecipe.DurationSeconds)
                 throw new System.InvalidOperationException("Produkcja nie została ukończona.");
-            if (!HarvesterFactory.FindSpawn(this, out var position))
-                throw new System.InvalidOperationException("Brak miejsca na harvestera przy bazie.");
-            int number = activeRecipe.Kind == RobotKind.Assembler ? nextAssembler : nextHarvester;
-            HarvesterFactory.Create(this, position, number, activeRecipe);
-            if (activeRecipe.Kind == RobotKind.Assembler) nextAssembler++; else nextHarvester++;
-            IsProducing = false;
             PowerGrid.Unregister(this);
+            int number = activeRecipe.Kind == RobotKind.Hauler ? nextHauler : activeRecipe.Kind == RobotKind.Assembler ? nextAssembler : nextHarvester;
+            if (!HarvesterFactory.TryCreate(this, number, activeRecipe, out _))
+            {
+                IsWaitingForDeployment = true;
+                deploymentRetrySeconds = .25f;
+                return false;
+            }
+            if (activeRecipe.Kind == RobotKind.Hauler) nextHauler++;
+            else if (activeRecipe.Kind == RobotKind.Assembler) nextAssembler++;
+            else nextHarvester++;
+            IsProducing = false;
+            IsWaitingForDeployment = false;
+            paidWood = 0;
+            return true;
         }
 
         public void CancelProduction()
@@ -79,6 +104,8 @@ namespace Protocol
             if (resources != null)
                 resources.Add(ResourceKind.Wood, paidWood);
             IsProducing = false;
+            IsWaitingForDeployment = false;
+            paidWood = 0;
             if (PowerGrid != null) PowerGrid.Unregister(this);
         }
 
@@ -88,6 +115,27 @@ namespace Protocol
 
         public void Initialize(ResourceManager manager) => resources = manager;
 
+        internal bool TryResolveReturnTarget(RobotController robot, NavMeshAgent agent, out Vector3 position)
+        {
+            position = default;
+            if (!isActiveAndEnabled || robot == null || robot.BaseDestination == null ||
+                !robot.BaseDestination.IsChildOf(transform) || agent == null || !agent.isOnNavMesh)
+                return false;
+
+            var path = new NavMeshPath();
+            if (NavMesh.SamplePosition(robot.BaseDestination.position, out var hit, .75f, agent.areaMask) &&
+                agent.CalculatePath(hit.position, path) && path.status == NavMeshPathStatus.PathComplete)
+            {
+                position = hit.position;
+            }
+            else if (!HarvesterFactory.TryFindDestination(transform, robot.transform.position, 0, out position, agent.areaMask))
+            {
+                return false;
+            }
+
+            robot.BaseDestination.position = position;
+            return true;
+        }
         public bool CanDeposit(RobotController robot)
         {
             return isActiveAndEnabled && resources != null && resources.isActiveAndEnabled && robot != null && robot.Inventory != null && robot.BaseDestination != null && robot.BaseDestination.IsChildOf(transform) && Vector3.Distance(

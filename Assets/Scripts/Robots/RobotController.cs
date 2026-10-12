@@ -14,7 +14,9 @@ namespace Protocol
 
         public string DisplayName => gameObject.name;
 
-        public string Status => GetComponent<RobotCharging>() is RobotCharging charge && charge.IsCharging ? "Charging"
+        public string Status => Movement != null && Movement.IsBeingTowed ? "Towed"
+            : GetComponent<HaulerTowing>() is HaulerTowing towing && towing.IsBusy ? (towing.IsTransporting ? "Towing" : "Recovery")
+            : GetComponent<RobotCharging>() is RobotCharging charge && charge.IsCharging ? "Charging"
             : Energy != null && Energy.IsDepleted ? "NoPower" : LuaRuntime != null && LuaRuntime.State == LuaProgramState.Error ? "Error" : LuaRuntime != null && LuaRuntime.ActionStatus.Length > 0 ? LuaRuntime.ActionStatus : HarvestCycle != null && (HarvestCycle.IsRunning || HarvestCycle.State == HarvestState.Error) ? HarvestCycle.State.ToString() : Movement != null && Movement.IsMoving ? "Moving" : Movement != null && Movement.Result == MovementResult.Failed ? "Error" : "Idle";
 
         public RobotEnergy Energy { get; private set; }

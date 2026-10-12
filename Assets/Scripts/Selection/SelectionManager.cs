@@ -18,6 +18,13 @@ namespace Protocol
 
         public event System.Action SelectionChanged;
 
+        private HaulerTowing towCommand;
+        public void BeginTowCommand(HaulerTowing hauler)
+        {
+            CancelDrag();
+            GetComponent<BuildingPlacement>()?.Cancel();
+            towCommand = hauler;
+        }
         private bool dragging;
         private Vector2 dragStart, dragEnd;
 
@@ -90,6 +97,7 @@ namespace Protocol
 
         private void ClearSelection()
         {
+            towCommand = null;
             if (SelectedStructure != null)
                 SelectedStructure.SetSelected(false);
             SelectedStructure = null;
@@ -129,6 +137,7 @@ namespace Protocol
                 if (!NavMesh.SamplePosition(destination, out NavMeshHit hit, 2, NavMesh.AllAreas))
                     continue;
                 robot.LuaRuntime?.StopProgram();
+                robot.GetComponent<HaulerTowing>()?.Cancel();
                 robot.GetComponent<RobotCharging>()?.Cancel();
                 robot.GetComponent<AssemblerConstruction>()?.Cancel();
                 robot.HarvestCycle?.CancelCycle();
@@ -147,6 +156,15 @@ namespace Protocol
             CommandMessage = accepted > 0 ? "Rozkaz ruchu: " + accepted + ". Programy tych robotów zatrzymano." : "Brak dostępnego celu ruchu.";
         }
 
+        internal void RestoreSelection(IEnumerable<RobotController> robots, SelectableStructure structure)
+        {
+            ClearSelection();
+            foreach (var robot in robots) Add(robot);
+            SelectedStructure = structure;
+            if (structure != null) structure.SetSelected(true);
+            SelectionChanged?.Invoke();
+        }
+
         public void CancelDrag() => dragging = false;
 
         private void OnGUI()
@@ -161,6 +179,23 @@ namespace Protocol
             }
 
             var e = Event.current;
+            if (towCommand != null)
+            {
+                if ((e.type == EventType.KeyDown && e.keyCode == KeyCode.Escape) ||
+                    (e.type == EventType.MouseDown && e.button == 1 && !UnitPanel.ContainsPointer(e.mousePosition)))
+                { towCommand = null; e.Use(); return; }
+                if (e.type == EventType.MouseDown && e.button == 0 && !UnitPanel.ContainsPointer(e.mousePosition))
+                {
+                    var ray = worldCamera.ScreenPointToRay(new Vector3(e.mousePosition.x, Screen.height - e.mousePosition.y, 0));
+                    RobotController target = Physics.Raycast(ray, out var hit, worldCamera.farClipPlane)
+                        ? hit.collider.GetComponentInParent<RobotController>() : null;
+                    towCommand.TryBegin(target);
+                    towCommand = null;
+                    e.Use(); return;
+                }
+                GUI.Label(new Rect(20, 70, 320, 30), "Tow — wskaż rozładowanego robota");
+                if (!UnitPanel.ContainsPointer(e.mousePosition)) return;
+            }
             if (GetComponent<BuildingPlacement>()?.HandleWorldInput(e) == true)
             {
                 CancelDrag();

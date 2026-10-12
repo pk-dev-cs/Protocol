@@ -42,6 +42,7 @@ namespace Protocol
 #if UNITY_EDITOR
             gameObject.AddComponent<PowerDebugPanel>().Initialize(this, GetComponentInChildren<ColonyPowerGrid>(), environment);
 #endif
+            GameSaveService.BindWorld(this);
             IsInitialized = true;
         }
 
@@ -66,7 +67,7 @@ namespace Protocol
                 var robot = robotTransform.GetComponent<RobotController>();
                 robot.Energy.ConfigurePower(harvesterRecipe.BatteryKWh, harvesterRecipe.MovementKW,
                     harvesterRecipe.ConstructionKW, worldClock, harvesterRecipe.MiningKW);
-                if (robot.UnitType == "Harvester" && robot.GetComponent<RobotCharging>() == null)
+                if (robot.GetComponent<RobotCharging>() == null)
                     robot.gameObject.AddComponent<RobotCharging>();
                 var destination = new GameObject(robot.name + " - base destination").transform;
                 destination.SetParent(baseBuilding.transform, false);
@@ -96,6 +97,8 @@ namespace Protocol
                     structure.gameObject.AddComponent<SelectableStructure>();
             }
 
+            BaseVisualFactory.EnsureModel(transform.Find("World/Base"));
+            IronVisualFactory.EnsureModel(transform.Find("World/Mine"));
             transform.Find("World/Main Camera").GetComponent<RTSCameraController>().ConfigureMap();
             // Also upgrades a world saved by the stage-one editor command.
             var robots = transform.Find("World/Robots");
@@ -103,6 +106,7 @@ namespace Protocol
             {
                 if (robot.name.StartsWith("Builder-"))
                     robot.name = robot.name.Replace("Builder-", "Harvester-");
+                RobotVisualFactory.EnsureModel(robot, RobotKind.Harvester);
                 if (robot.GetComponent<RobotController>() == null)
                     robot.gameObject.AddComponent<RobotController>();
             }
@@ -183,16 +187,8 @@ namespace Protocol
         }
 
         public static void BuildRobot(string name, Transform parent, Vector3 position, Material shell, Material dark, Material accent)
-
         {
-            var robot = Root(name, parent, position);
-            Part("Chassis", robot, PrimitiveType.Cube, new Vector3(0, 0.65f, 0), new Vector3(1.3f, 0.7f, 1.6f), shell);
-            Part("Cargo tray", robot, PrimitiveType.Cube, new Vector3(0, 1.04f, 0.4f), new Vector3(1.05f, 0.15f, 0.6f), dark);
-            Part("Sensor", robot, PrimitiveType.Cube, new Vector3(0, 1.28f, -0.4f), new Vector3(0.85f, 0.55f, 0.65f), shell);
-            Part("Eye", robot, PrimitiveType.Cube, new Vector3(0, 1.3f, -0.74f), new Vector3(0.65f, 0.18f, 0.08f), accent, false);
-            for (int side = -1; side <= 1; side += 2)
-                Part("Track", robot, PrimitiveType.Cube, new Vector3(side * 0.8f, 0.35f, 0), new Vector3(0.38f, 0.6f, 1.9f), dark);
-            Part("Identity stripe", robot, PrimitiveType.Cube, new Vector3(0, 1.015f, 0), new Vector3(1.31f, 0.04f, 0.2f), accent, false);
+            RobotVisualFactory.Create(name, parent, position, RobotKind.Harvester);
         }
 
         private static Transform Root(string name, Transform parent, Vector3 position)

@@ -116,6 +116,32 @@ namespace Protocol
             yield return null;
             operation.allowSceneActivation = true;
             while (!operation.isDone) yield return null;
+            if (GameSaveService.HasPendingLoad)
+            {
+                status.text = "Odtwarzanie zapisu";
+                yield return null;
+                var restore = GameSaveService.RestorePending();
+                while (true)
+                {
+                    object next = null;
+                    bool more = false;
+                    try { more = restore.MoveNext(); if (more) next = restore.Current; }
+                    catch (Exception exception)
+                    {
+                        error = "Nie udało się odtworzyć zapisu. Wróć do menu.";
+                        Debug.LogException(exception);
+                    }
+                    if (error != null)
+                    {
+                        (restore as IDisposable)?.Dispose();
+                        GameSaveService.ClearPending();
+                        ShowFailure(error);
+                        yield break;
+                    }
+                    if (!more) break;
+                    yield return next;
+                }
+            }
             failed = null;
 
             float deadline = Time.realtimeSinceStartup + 15;
