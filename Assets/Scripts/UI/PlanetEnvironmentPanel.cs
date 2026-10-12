@@ -18,12 +18,14 @@ namespace Protocol
         private GUIStyle labelStyle;
         private GUIStyle numberStyle;
         private GUIStyle iconStyle;
+        private GUIStyle speedStyle;
 
         public bool IsOpen => open;
         public Rect VisiblePanelRect => PanelRect;
         private static float Scale => RightHudPanels.Scale;
         private static float ClockScale => Mathf.Clamp(Screen.height / 900f, .7f, 1.5f);
         public static Rect IconRect => new Rect(Screen.width - 222 * ClockScale, 16 * ClockScale, 46 * ClockScale, 46 * ClockScale);
+        public static Rect SpeedButtonRect => new Rect(Screen.width - 166 * ClockScale, 16 * ClockScale, 46 * ClockScale, 46 * ClockScale);
         private bool Visible => !PauseMenu.IsOpen && !ScenarioLoadingScreen.IsVisible;
         private Rect PanelRect
         {
@@ -48,7 +50,13 @@ namespace Protocol
         }
 
         public static bool ContainsPointer(Vector2 guiPosition) => active != null && active.isActiveAndEnabled && active.Visible &&
-            (IconRect.Contains(guiPosition) || (active.openness > 0 && active.PanelRect.Contains(guiPosition)));
+            (IconRect.Contains(guiPosition) || SpeedButtonRect.Contains(guiPosition) || (active.openness > 0 && active.PanelRect.Contains(guiPosition)));
+
+        public void ToggleSimulationSpeed()
+        {
+            if (!Visible || environment == null || GameSaveService.IsRestoring || Time.timeScale <= 0) return;
+            Time.timeScale = Time.timeScale > 1 ? 1 : 4;
+        }
 
         public void Toggle()
         {
@@ -97,6 +105,13 @@ namespace Protocol
             GUI.color = hover || open ? new Color(.4f, 1, .8f) : new Color(.72f, .85f, .9f);
             GUI.DrawTexture(new Rect(icon.x + icon.width * .19f, icon.y + icon.height * .19f, icon.width * .62f, icon.height * .62f), planetIcon);
             GUI.color = tint;
+            var speed = SpeedButtonRect;
+            bool accelerated = Time.timeScale > 1;
+            bool speedHover = speed.Contains(pointer);
+            Fill(speed, accelerated || speedHover ? new Color(.11f, .26f, .28f, .98f) : new Color(.055f, .08f, .11f, .97f));
+            speedStyle.fontSize = Mathf.RoundToInt(18 * ClockScale);
+            speedStyle.normal.textColor = accelerated || speedHover ? new Color(.4f, 1, .8f) : new Color(.72f, .85f, .9f);
+            if (GUI.Button(speed, accelerated ? "4×" : "▶▶", speedStyle)) ToggleSimulationSpeed();
             if (openness > 0)
             {
                 var panel = PanelRect;
@@ -137,6 +152,7 @@ namespace Protocol
             labelStyle.normal.textColor = new Color(.83f, .88f, .92f);
             numberStyle = new GUIStyle(labelStyle) { alignment = TextAnchor.MiddleRight };
             iconStyle = new GUIStyle(GUIStyle.none);
+            speedStyle = new GUIStyle(iconStyle) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
             planetIcon = new Texture2D(64, 64, TextureFormat.RGBA32, false) { name = "Environment icon", filterMode = FilterMode.Bilinear };
             var pixels = new Color[64 * 64];
             for (int y = 0; y < 64; y++)

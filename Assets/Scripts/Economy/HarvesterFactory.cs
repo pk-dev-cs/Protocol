@@ -5,64 +5,98 @@ namespace Protocol
 {
     public static class HarvesterFactory
     {
-        public static bool FindSpawn(BaseBuilding home, out Vector3 position)
+        private const float MinimumSpawnRadius = 7;
+        private const float MaximumSpawnRadius = 15;
+        private const float SpawnRingSpacing = 2;
+        private const int CandidatesPerRing = 24;
+        private static readonly Vector3 SpawnHalfExtents = new Vector3(1.2f, .8f, 1.2f);
+
+        public static bool FindSpawn(BaseBuilding home, out Vector3 position) =>
+            FindSpawn(home, null, out position);
+
+        private static bool FindSpawn(BaseBuilding home, System.Func<Vector3, bool> acceptsPosition, out Vector3 position)
         {
             var units = home.transform.root.GetComponentsInChildren<RobotController>();
-            for (int i = 0; i < 120; i++)
+            var terrain = home.transform.parent.Find("Terrain").GetComponent<Collider>();
+            Physics.SyncTransforms();
+            for (float radius = MinimumSpawnRadius; radius <= MaximumSpawnRadius; radius += SpawnRingSpacing)
             {
-                float angle = i * 137.5f * Mathf.Deg2Rad, radius = 9 + i / 24 * 3;
-                var p = home.transform.position + new Vector3(Mathf.Cos(angle) * radius, 0, Mathf.Sin(angle) * radius);
-                if (!NavMesh.SamplePosition(p, out var hit, 2, NavMesh.AllAreas))
-                    continue;
-                bool free = true;
-                foreach (var unit in units)
-                    if ((unit.transform.position - hit.position).sqrMagnitude < 12)
+                for (int i = 0; i < CandidatesPerRing; i++)
+                {
+                    float angle = (-90 + i * 360f / CandidatesPerRing) * Mathf.Deg2Rad;
+                    var desired = home.transform.position +
+                        new Vector3(Mathf.Cos(angle) * radius, 0, Mathf.Sin(angle) * radius);
+                    desired.y = ScenarioLandscape.HeightAt(desired.x, desired.z);
+                    if (!NavMesh.SamplePosition(desired, out var hit, 2, NavMesh.AllAreas)) continue;
+                    var offset = hit.position - home.transform.position;
+                    if (offset.x * offset.x + offset.z * offset.z > MaximumSpawnRadius * MaximumSpawnRadius) continue;
+                    bool free = true;
+                    foreach (var unit in units)
                     {
+                        if ((unit.transform.position - hit.position).sqrMagnitude >= 12) continue;
                         free = false;
                         break;
                     }
-
-                if (free)
-                {
+                    if (!free) continue;
+                    foreach (var collider in Physics.OverlapBox(hit.position + Vector3.up * .9f,
+                        SpawnHalfExtents, Quaternion.identity, ~0, QueryTriggerInteraction.Ignore))
+                    {
+                        if (collider == terrain) continue;
+                        free = false;
+                        break;
+                    }
+                    if (!free || (acceptsPosition != null && !acceptsPosition(hit.position))) continue;
                     position = hit.position;
                     return true;
                 }
             }
-
             position = default;
             return false;
         }
-
         public static RobotController Create(BaseBuilding home, Vector3 position, int number) => Create(home, position, number, home.Recipe(RobotKind.Harvester));
 
+        public static bool TryCreate(BaseBuilding home, int number, UnitProductionRecipe recipe, out RobotController robot)
+        {
+            robot = null;
+            Vector3 minePosition = default, basePosition = default;
+            if (!FindSpawn(home, candidate => TryFindDestinations(home, candidate, number, recipe.Kind,
+                out minePosition, out basePosition), out var position))
+                return false;
+            robot = CreateAt(home, position, number, recipe, minePosition, basePosition);
+            return true;
+        }
+
         public static RobotController Create(BaseBuilding home, Vector3 position, int number, UnitProductionRecipe recipe)
+        {
+            if (!TryFindDestinations(home, position, number, recipe.Kind, out var minePosition, out var basePosition))
+                throw new System.InvalidOperationException("Brak dostępnego stanowiska przy bazie lub kopalni.");
+            return CreateAt(home, position, number, recipe, minePosition, basePosition);
+        }
+
+        private static bool TryFindDestinations(BaseBuilding home, Vector3 from, int number, RobotKind kind,
+            out Vector3 minePosition, out Vector3 basePosition)
+        {
+            minePosition = default;
+            if (!TryFindDestination(home.transform, from, number, out basePosition)) return false;
+            if (kind != RobotKind.Harvester) return true;
+            var mine = home.transform.parent.Find("Mine").GetComponent<Mine>();
+            return TryFindDestination(mine.transform, from, number, out minePosition);
+        }
+
+        internal static RobotController CreateAt(BaseBuilding home, Vector3 position, int number,
+            UnitProductionRecipe recipe, Vector3 minePosition, Vector3 basePosition,
+            Transform restoredMineTarget = null, Transform restoredBaseTarget = null)
         {
             var root = home.transform.root;
             var world = home.transform.parent;
             var parent = world.Find("Robots");
-            var model = parent.GetChild(0);
             var mine = world.Find("Mine").GetComponent<Mine>();
-            // Validate both destinations before creating a unit or taking its production payment.
-            Transform mineTarget = Destination(mine.transform, number, "mine"), baseTarget = null;
-            try
-            {
-                baseTarget = Destination(home.transform, number, "base");
-            }
-            catch
-            {
-                Object.Destroy(mineTarget.gameObject);
-                throw;
-            }
-
+            var mineTarget = recipe.Kind == RobotKind.Harvester
+                ? restoredMineTarget ?? Destination(mine.transform, number, "mine", minePosition) : null;
+            var baseTarget = restoredBaseTarget ?? Destination(home.transform, number, "base", basePosition);
             string name = recipe.Kind + "-" + number.ToString("00");
-            ScenarioBootstrap.BuildRobot(
-                name,
-                parent,
-                position,
-                model.Find("Chassis").GetComponent<Renderer>().sharedMaterial,
-                model.Find("Cargo tray").GetComponent<Renderer>().sharedMaterial,
-                model.Find("Eye").GetComponent<Renderer>().sharedMaterial);
-            var body = parent.GetChild(parent.childCount - 1);
+            var body = RobotVisualFactory.Create(name, parent, position, recipe.Kind);
+
             var robot = body.gameObject.AddComponent<RobotController>();
             robot.InitializeType(recipe.Kind);
             var agent = body.gameObject.AddComponent<NavMeshAgent>();
@@ -80,46 +114,55 @@ namespace Protocol
             var cycle = recipe.Kind == RobotKind.Harvester ? body.gameObject.AddComponent<RobotHarvestCycle>() : null;
             robot.InitializeEconomy(inventory, cycle, baseTarget);
             if (cycle != null) cycle.Initialize(robot, mine, home);
-            if (recipe.Kind == RobotKind.Harvester)
-            {
-                robot.Energy.ConfigurePower(recipe.BatteryKWh, recipe.MovementKW, recipe.ConstructionKW,
-                    world.GetComponent<AlienWorldLighting>(), recipe.MiningKW);
-                body.gameObject.AddComponent<RobotCharging>();
-            }
+            robot.Energy.ConfigurePower(recipe.BatteryKWh, recipe.MovementKW, recipe.ConstructionKW,
+                world.GetComponent<AlienWorldLighting>(), recipe.MiningKW);
+            body.gameObject.AddComponent<RobotCharging>();
+            if (recipe.Kind == RobotKind.Hauler)
+                body.gameObject.AddComponent<HaulerTowing>().Configure(recipe.TowingKW);
             if (recipe.Kind == RobotKind.Assembler)
             {
-                robot.Energy.ConfigurePower(recipe.BatteryKWh, recipe.MovementKW, recipe.ConstructionKW, world.GetComponent<AlienWorldLighting>());
                 body.gameObject.AddComponent<AssemblerConstruction>();
-                var arm = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                arm.name = "Construction arm";
-                arm.transform.SetParent(body, false);
-                arm.transform.localPosition = new Vector3(0, 1.65f, .1f);
-                arm.transform.localScale = new Vector3(.3f, 1.2f, .35f);
-                arm.transform.localRotation = Quaternion.Euler(0, 0, 35);
-                arm.GetComponent<Renderer>().sharedMaterial = model.Find("Eye").GetComponent<Renderer>().sharedMaterial;
-                Object.Destroy(arm.GetComponent<Collider>());
+                body.gameObject.AddComponent<RobotToolEffects>();
             }
             var runtime = body.gameObject.AddComponent<RobotLuaRuntime>();
             runtime.LoadExample(0);
-            if (recipe.Kind == RobotKind.Assembler) runtime.SourceCode = "print(unitName .. ': ready')";
+            if (recipe.Kind != RobotKind.Harvester) runtime.SourceCode = "print(unitName .. ': ready')";
             runtime.InitializeSavedProgram("stage01-" + name);
             robot.InitializeLua(runtime);
-            root.GetComponent<FogOfWar>()?.RefreshUnits();
-            root.GetComponent<MinimapPanel>()?.Initialize();
-            root.GetComponent<SelectionPortraits>()?.Refresh();
+            if (!GameSaveService.IsRestoring)
+            {
+                root.GetComponent<FogOfWar>()?.RefreshUnits();
+                root.GetComponent<MinimapPanel>()?.Initialize();
+                root.GetComponent<SelectionPortraits>()?.Refresh();
+            }
             return robot;
         }
 
-        static Transform Destination(Transform building, int number, string suffix)
+        internal static bool TryFindDestination(Transform building, Vector3 from, int number, out Vector3 position, int areaMask = NavMesh.AllAreas)
         {
-            float angle = (number * 137.5f) * Mathf.Deg2Rad;
-            float radius = 6 + (number / 12) * 2.8f;
-            Vector3 desired = building.position + new Vector3(Mathf.Cos(angle) * radius, 0, Mathf.Sin(angle) * radius);
-            if (!NavMesh.SamplePosition(desired, out var hit, 3, NavMesh.AllAreas))
-                throw new System.InvalidOperationException("Brak stanowiska przy " + building.name);
-            var target = new GameObject("Harvester-" + number + " - " + suffix + " destination").transform;
+            var path = new NavMeshPath();
+            for (int i = 0; i < 72; i++)
+            {
+                float angle = (number + i) * 137.5f * Mathf.Deg2Rad;
+                float radius = 6 + (number / 12) * 2.8f + (i / 24) * 2;
+                var desired = building.position + new Vector3(Mathf.Cos(angle) * radius, 0, Mathf.Sin(angle) * radius);
+                desired.y = ScenarioLandscape.HeightAt(desired.x, desired.z);
+                if (!NavMesh.SamplePosition(desired, out var hit, 3, areaMask) ||
+                    !NavMesh.CalculatePath(from, hit.position, areaMask, path) ||
+                    path.status != NavMeshPathStatus.PathComplete)
+                    continue;
+                position = hit.position;
+                return true;
+            }
+            position = default;
+            return false;
+        }
+
+        private static Transform Destination(Transform building, int number, string suffix, Vector3 position)
+        {
+            var target = new GameObject("Robot-" + number + " - " + suffix + " destination").transform;
             target.SetParent(building);
-            target.position = hit.position;
+            target.position = position;
             return target;
         }
     }

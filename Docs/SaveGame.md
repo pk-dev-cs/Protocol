@@ -1,0 +1,19 @@
+# Save Game / Load Game
+
+Escape > Save Game opens a name field and a scrollable list of existing saves. Zapisz creates a new independent save every time, including when names repeat. Main Menu > Load Game opens a scrollable list sorted newest first; select a name/date row and choose Wczytaj. The load button is disabled when no save or backup exists.
+
+Location: Application.persistentDataPath/Saves/<guid>.protocol. Display names (1–80 characters) are independent of filenames; a small .info metadata file allows listing names and dates without inflating the full world state. The existing game.protocol slot and its backup remain readable as Poprzedni zapis. Legacy single-slot API replacements preserve game.protocol.backup. A gzip envelope contains JSON, format version 1 and a SHA-256 integrity checksum. Saves are written to a temporary file, flushed, validated and atomically replaced. A corrupt primary file falls back to the backup. Settings and individually saved program files remain separate.
+
+Saved gameplay data includes resources, all robots and infrastructure, transforms, inventories, independent battery configurations and charge levels, base production and counters, construction progress and paid costs, charging reservations, pending actions, explored fog, forest depletion, camera, selection, time scale, world clock and environment profile.
+
+SaveStateCodec defines a closed, versioned list of gameplay fields; arbitrary CLR types are never deserialized from the file. Bump the format version and provide a migration when changing this contract or the baseline scenario hierarchy. Existing static scene objects use the initialized scenario hierarchy as identity; runtime objects use generated identities.
+
+Lua stores the source used to start the running program independently of the current editable source, the exact number of coroutine resumes, and recorded API/economy/random results. During load, replay reconstructs VM locals and the suspended stack without performing gameplay side effects; the current pending action is then restored. Replay yields regularly to keep the loading screen responsive. Consecutive identical callback results are compacted. Long-running scripts can take longer to restore, because their execution history must be reconstructed. The displayed output and error state are restored after replay.
+
+## Validation
+
+Open Stage01 in Play Mode and choose Protocol > Validate Save Game. This is a destructive test scenario fixture inside Play Mode: it replaces the current scene, creates test infrastructure and robots, and verifies a fresh-scene roundtrip. It uses its own temporary save path and never overwrites the normal game slot. Stop Play Mode when finished.
+
+The validation compares saved component state, verifies ongoing production and construction, charging ownership and power, movement/manual harvesting, batteries, resource inventories, depleted trees, fog, camera, selection and software context. It also checks continuation with Lua local variables, recorded random/economy values, atomic replacement and recovery from a corrupt primary file.
+
+Manual smoke test: start a scenario, issue movement/work, change code, Escape > Save Game > enter a name > Zapisz, return to Main Menu > Load Game > select a save > Wczytaj. Create another save with the same name at a different state and confirm that each row loads its own state. Confirm that work resumes from the saved state and no resource cost is charged a second time. Repeat save/load after producing or building more entities. Also verify that Load Game is disabled before the first save and that a broken save reports an error without overwriting the slot.

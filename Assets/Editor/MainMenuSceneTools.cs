@@ -304,8 +304,9 @@ namespace Protocol.Editor
             view.Scenarios = Page("Scenarios", interaction);
             view.Settings = Page("Settings", interaction);
             view.ScenariosButton = Button("Scenariusze", Row(view.Home.transform, 0, 72));
-            view.SettingsButton = Button("Ustawienia", Row(view.Home.transform, 88, 72));
-            view.QuitButton = Button("Wyjdź z gry", Row(view.Home.transform, 176, 72));
+            view.LoadGameButton = Button("Load Game", Row(view.Home.transform, 88, 72));
+            view.SettingsButton = Button("Ustawienia", Row(view.Home.transform, 176, 72));
+            view.QuitButton = Button("Wyjdź z gry", Row(view.Home.transform, 264, 72));
             Heading(view.Scenarios.transform, "SCENARIUSZE");
             Label("Scenariusz 1", Row(view.Scenarios.transform, 76, 60), 30, TextAnchor.MiddleLeft);
             view.StartButton = Button("Rozpocznij", Row(view.Scenarios.transform, 156, 66));

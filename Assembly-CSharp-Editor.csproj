@@ -1,4 +1,4 @@
-﻿<Project>
+<Project>
   <!-- Generated file, do not modify, your changes will be overwritten (use AssetPostprocessor.OnGeneratedCSProject) -->
   <PropertyGroup>
     <BaseIntermediateOutputPath>Temp\obj\$(MSBuildProjectName)</BaseIntermediateOutputPath>
@@ -53,11 +53,19 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Assets\Editor\StageOneSceneTools.cs" />
+    <Compile Include="Assets\Editor\RobotModelTools.cs" />
+    <Compile Include="Assets\Editor\ModelSceneTools.cs" />
+    <Compile Include="Assets\Editor\BaseModelTools.cs" />
+    <Compile Include="Assets\Editor\IronModelTools.cs" />
     <Compile Include="Assets\Editor\PlanetFogTools.cs" />
     <Compile Include="Assets\Editor\PlanetEnvironmentChecks.cs" />
+    <Compile Include="Assets\Editor\RobotModelGeometry.cs" />
     <Compile Include="Assets\Editor\PlanetEnvironmentTools.cs" />
+    <Compile Include="Assets\Editor\SolarModelTools.cs" />
     <Compile Include="Assets\Editor\PowerSimulationTools.cs" />
     <Compile Include="Assets\Editor\MainMenuSceneTools.cs" />
+    <Compile Include="Assets\Editor\BatteryStorageChecks.cs" />
+    <Compile Include="Assets\Editor\BatteryModelTools.cs" />
     <Compile Include="Assets\Editor\RobotEnergyChecks.cs" />
   </ItemGroup>
   <ItemGroup>

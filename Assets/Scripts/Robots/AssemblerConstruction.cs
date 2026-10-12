@@ -13,6 +13,7 @@ namespace Protocol
         private bool travelling;
         private Vector3 approach;
         public bool IsBuilding => site != null;
+        public Vector3? WorkPosition => site != null && !travelling ? site.transform.position : (Vector3?)null;
         public string Status { get; private set; } = "";
 
         public bool TryBegin(BuildingPlacement placement, ConstructionRecipe recipe, Vector3 position)
@@ -28,6 +29,7 @@ namespace Protocol
             paidWood = recipe.WoodCost;
             var robot = GetComponent<RobotController>();
             robot.LuaRuntime?.StopProgram();
+            robot.GetComponent<RobotCharging>()?.Cancel();
             site = ConstructionSite.Create(placement.transform.Find("World"), position,
                 JsonUtility.FromJson<ConstructionRecipe>(JsonUtility.ToJson(recipe)));
             elapsed = 0;
@@ -71,7 +73,8 @@ namespace Protocol
             if (kind == ConstructionKind.SolarPanel)
                 SolarPanel.Create(parent, position, scenario.GetComponentInChildren<ColonyPowerGrid>(),
                     scenario.GetComponentInChildren<PlanetEnvironmentSystem>());
-            else ChargingStationStructure.Create(parent, position);
+            else if (kind == ConstructionKind.ChargingStation) ChargingStationStructure.Create(parent, position);
+            else BatteryStorage.Create(parent, position, scenario.GetComponentInChildren<ColonyPowerGrid>());
             scenario.GetComponent<MinimapPanel>()?.Initialize();
             scenario.GetComponent<SelectionPortraits>()?.Refresh();
             Status = "Budowa ukończona";

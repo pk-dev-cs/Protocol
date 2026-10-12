@@ -50,11 +50,14 @@ namespace Protocol
         }
 
         public bool TryReserve(RobotCharging robot, out Vector3 dock)
+        => TryReserve(robot, robot != null ? robot.transform.position : default, out dock);
+
+        internal bool TryReserve(RobotCharging robot, Vector3 from, out Vector3 dock)
         {
             dock = default;
             if (!IsAvailable || robot == null || grid == null || robot.Energy == null || robot.Energy.Percentage >= 100)
                 return false;
-            if (!TryFindDock(robot.transform.position, out dock)) return false;
+            if (!TryFindDock(from, out dock)) return false;
             assignedRobot = robot;
             return true;
         }
@@ -80,6 +83,15 @@ namespace Protocol
                 if (!NavMesh.SamplePosition(candidate, out NavMeshHit end, 1.5f, NavMesh.AllAreas) ||
                     !NavMesh.CalculatePath(start.position, end.position, NavMesh.AllAreas, path) ||
                     path.status != NavMeshPathStatus.PathComplete) continue;
+                bool occupied = false;
+                foreach (var robot in transform.root.GetComponentsInChildren<RobotController>())
+                {
+                    if ((robot.transform.position - from).sqrMagnitude < .01f) continue;
+                    Vector3 separationFromDock = robot.transform.position - end.position;
+                    separationFromDock.y = 0;
+                    if (separationFromDock.sqrMagnitude < 6.25f) { occupied = true; break; }
+                }
+                if (occupied) continue;
                 float distance = Vector3.Distance(from, end.position);
                 if (distance >= best) continue;
                 best = distance;

@@ -396,7 +396,7 @@ namespace Protocol
             Vector2 scroll,
             float viewportHeight,
             float viewportWidth,
-            Vector2 rootOrigin)
+            Vector2 rootOrigin, bool readOnly = false)
         {
             style.font = CodeFont;
             if (code != highlighted)
@@ -433,7 +433,10 @@ namespace Protocol
             int previousCursor = caret;
             int previousSelection = selectionCaret;
             GUI.SetNextControlName("RobotLuaCode");
+            bool previousEnabled = GUI.enabled;
+            GUI.enabled = previousEnabled && !readOnly;
             string edited = GUI.TextArea(rect, code, RobotLuaRuntime.MaxCodeLength, input);
+            GUI.enabled = previousEnabled;
             if (Event.current.type == EventType.Repaint)
             {
                 // Reserve glyphs before token draws so atlas growth cannot invalidate earlier tokens.

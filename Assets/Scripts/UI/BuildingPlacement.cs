@@ -10,6 +10,10 @@ namespace Protocol
         {
             Kind = ConstructionKind.ChargingStation, WoodCost = 100, DurationSeconds = 20
         };
+        [SerializeField] private ConstructionRecipe batteryStorage = new ConstructionRecipe
+        {
+            Kind = ConstructionKind.BatteryStorage, WoodCost = 150, DurationSeconds = 25
+        };
         private AssemblerConstruction builder;
         private ConstructionRecipe recipe;
         private GameObject preview;
@@ -28,7 +32,7 @@ namespace Protocol
             selection.SelectionChanged += OnSelectionChanged;
         }
 
-        public ConstructionRecipe Recipe(ConstructionKind kind) => kind == ConstructionKind.SolarPanel ? solar : station;
+        public ConstructionRecipe Recipe(ConstructionKind kind) => kind == ConstructionKind.SolarPanel ? solar : kind == ConstructionKind.ChargingStation ? station : batteryStorage;
 
         public void Begin(AssemblerConstruction assembler, ConstructionKind kind)
         {

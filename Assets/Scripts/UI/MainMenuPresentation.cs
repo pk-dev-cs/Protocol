@@ -12,6 +12,9 @@ namespace Protocol
 
         private void Start()
         {
+            foreach (var child in GetComponentsInChildren<Transform>())
+                if (child.Find("Chassis") != null && child.Find("Cargo tray") != null)
+                    RobotVisualFactory.EnsureModel(child, RobotKind.Harvester);
             sensorIntensity = SensorLight != null ? SensorLight.intensity : 0;
             FrameHero();
         }

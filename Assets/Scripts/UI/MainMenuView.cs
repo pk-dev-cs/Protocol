@@ -42,6 +42,7 @@ namespace Protocol
         public GameObject Scenarios;
         public GameObject Settings;
         public Button ScenariosButton;
+        public Button LoadGameButton;
         public Button SettingsButton;
         public Button QuitButton;
         public Button StartButton;
@@ -65,6 +66,13 @@ namespace Protocol
         public CanvasGroup Interaction;
         public CanvasGroup Curtain;
         private MainMenu menu;
+        private GameObject savesPage;
+        private RectTransform saveContent;
+        private ScrollRect saveList;
+        private Button loadSelected;
+        private Button savesBack;
+        private string selectedSave;
+        private readonly System.Collections.Generic.List<Button> saveRows = new System.Collections.Generic.List<Button>();
         private ScreenResolutionPicker resolutions;
         private bool fullscreen;
         private bool musicEnabled;
@@ -75,6 +83,10 @@ namespace Protocol
         public void Initialize(MainMenu owner)
         {
             menu = owner;
+            EnsureLoadGameButton();
+            BuildSavesPage();
+            LoadGameButton.interactable = GameSaveService.HasSave;
+            LoadGameButton.onClick.AddListener(menu.LoadGame);
             ScenariosButton.onClick.AddListener(() => menu.ShowPage(MenuPage.Scenarios));
             SettingsButton.onClick.AddListener(() => menu.ShowPage(MenuPage.Settings));
             QuitButton.onClick.AddListener(menu.Quit);
@@ -91,20 +103,141 @@ namespace Protocol
             Curtain.blocksRaycasts = true;
         }
 
+        public void EnsureLoadGameButton()
+        {
+            if (LoadGameButton != null) return;
+            var row = Instantiate(ScenariosButton.gameObject, Home.transform);
+            row.name = "Load Game";
+            LoadGameButton = row.GetComponentInChildren<Button>();
+            LoadGameButton.onClick = new Button.ButtonClickedEvent();
+            LoadGameButton.GetComponentInChildren<Text>().text = "Load Game";
+            var rect = row.GetComponent<RectTransform>();
+            rect.anchoredPosition = ScenariosButton.GetComponent<RectTransform>().anchoredPosition + Vector2.down * 88;
+            SettingsButton.GetComponent<RectTransform>().anchoredPosition += Vector2.down * 88;
+            QuitButton.GetComponent<RectTransform>().anchoredPosition += Vector2.down * 88;
+        }
+
         public void Show(MenuPage page)
         {
             Home.SetActive(page == MenuPage.Home);
             Scenarios.SetActive(page == MenuPage.Scenarios);
             Settings.SetActive(page == MenuPage.Settings);
+            savesPage.SetActive(page == MenuPage.Saves);
             SetMessage("");
+            if (page == MenuPage.Saves) RefreshSaves();
             if (page == MenuPage.Settings) ReadSettings();
             SelectFirst(page);
+        }
+
+        private static RectTransform SaveRect(string name, Transform parent, Vector2 min, Vector2 max)
+        {
+            var rect = new GameObject(name, typeof(RectTransform)).GetComponent<RectTransform>();
+            rect.SetParent(parent, false);
+            rect.anchorMin = min;
+            rect.anchorMax = max;
+            rect.offsetMin = rect.offsetMax = Vector2.zero;
+            return rect;
+        }
+
+        private Button SaveButton(string name, Transform parent, Vector2 min, Vector2 max)
+        {
+            var button = Instantiate(StartButton, parent);
+            button.name = name;
+            button.onClick = new Button.ButtonClickedEvent();
+            var rect = button.GetComponent<RectTransform>();
+            rect.anchorMin = min;
+            rect.anchorMax = max;
+            rect.offsetMin = rect.offsetMax = Vector2.zero;
+            rect.pivot = new Vector2(.5f, .5f);
+            button.GetComponentInChildren<Text>().text = name;
+            return button;
+        }
+
+        private void BuildSavesPage()
+        {
+            var source = Scenarios.GetComponent<RectTransform>();
+            var page = SaveRect("Saved Games", source.parent, source.anchorMin, source.anchorMax);
+            page.offsetMin = source.offsetMin;
+            page.offsetMax = source.offsetMax;
+            savesPage = page.gameObject;
+            var heading = SaveRect("Heading", page, new Vector2(0, .91f), Vector2.one).gameObject.AddComponent<Text>();
+            heading.font = StartButton.GetComponentInChildren<Text>().font;
+            heading.fontSize = 25;
+            heading.color = new Color(.36f, .87f, .83f);
+            heading.alignment = TextAnchor.MiddleLeft;
+            heading.text = "LOAD GAME";
+            heading.raycastTarget = false;
+            var viewport = SaveRect("Save list", page, new Vector2(0, .15f), new Vector2(1, .88f));
+            viewport.gameObject.AddComponent<RectMask2D>();
+            var background = viewport.gameObject.AddComponent<Image>();
+            background.color = new Color(.035f, .055f, .07f, .35f);
+            saveList = viewport.gameObject.AddComponent<ScrollRect>();
+            saveList.viewport = viewport;
+            saveList.horizontal = false;
+            saveList.movementType = ScrollRect.MovementType.Clamped;
+            saveList.scrollSensitivity = 36;
+            saveContent = SaveRect("Entries", viewport, new Vector2(0, 1), Vector2.one);
+            saveContent.pivot = new Vector2(.5f, 1);
+            saveList.content = saveContent;
+            var layout = saveContent.gameObject.AddComponent<VerticalLayoutGroup>();
+            layout.spacing = 8;
+            layout.padding = new RectOffset(0, 8, 0, 8);
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandHeight = false;
+            saveContent.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            loadSelected = SaveButton("Wczytaj", page, Vector2.zero, new Vector2(.48f, .10f));
+            savesBack = SaveButton("Wróć", page, new Vector2(.52f, 0), new Vector2(1, .10f));
+            loadSelected.onClick.AddListener(() => { if (selectedSave != null) menu.LoadGame(selectedSave); });
+            savesBack.onClick.AddListener(() => menu.ShowPage(MenuPage.Home));
+            savesPage.SetActive(false);
+        }
+
+        private void RefreshSaves()
+        {
+            selectedSave = null;
+            loadSelected.interactable = false;
+            foreach (var row in saveRows)
+            {
+                row.gameObject.SetActive(false);
+                Destroy(row.gameObject);
+            }
+            saveRows.Clear();
+            foreach (var entry in GameSaveService.ListSaves())
+            {
+                var row = SaveButton(entry.Name, saveContent, Vector2.zero, Vector2.one);
+                row.gameObject.AddComponent<LayoutElement>().preferredHeight = 84;
+                var text = row.GetComponentInChildren<Text>();
+                text.fontSize = 23;
+                text.supportRichText = false;
+                text.text = entry.Name + "\n" + entry.DisplayDate;
+                row.onClick.AddListener(() => SelectSave(entry.Id, row));
+                saveRows.Add(row);
+            }
+            LayoutRebuilder.ForceRebuildLayoutImmediate(saveContent);
+            saveList.verticalNormalizedPosition = 1;
+            if (saveRows.Count == 0) SetMessage("Brak zapisanych rozgrywek.");
+        }
+
+        private void SelectSave(string id, Button selected)
+        {
+            selectedSave = id;
+            loadSelected.interactable = true;
+            foreach (var row in saveRows)
+            {
+                var image = row.targetGraphic as Image;
+                if (image != null) image.color = row == selected
+                    ? new Color(.10f, .28f, .27f, .95f)
+                    : new Color(.035f, .055f, .07f, .68f);
+            }
+            SetMessage("");
         }
 
         private void SelectFirst(MenuPage page)
         {
             var first = page == MenuPage.Home ? ScenariosButton.gameObject :
-                page == MenuPage.Scenarios ? StartButton.gameObject : Volume.gameObject;
+                page == MenuPage.Scenarios ? StartButton.gameObject :
+                page == MenuPage.Saves ? (saveRows.Count > 0 ? saveRows[0].gameObject : savesBack.gameObject) : Volume.gameObject;
             if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(first);
         }
 

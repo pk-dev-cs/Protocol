@@ -8,18 +8,19 @@ namespace Protocol
         readonly BaseBuilding home;
         bool building;
 
-        public string Status => building ? (home != null && home.HasPower ? home.ProductionName + " " + (home.ProductionProgress * 100).ToString("0") + "%" : "NO POWER — produkcja wstrzymana") : "";
+        public string Status => building && home != null ? home.ProductionStatus : "";
 
         public BaseLuaAPI(BaseBuilding home, Script script)
         {
             this.home = home;
             RegisterProduction(script, "buildHarvester", RobotKind.Harvester);
             RegisterProduction(script, "buildAssembler", RobotKind.Assembler);
+            RegisterProduction(script, "buildHauler", RobotKind.Hauler);
         }
 
         private void RegisterProduction(Script script, string name, RobotKind kind)
         {
-            script.Globals.Set(name, DynValue.NewCallback((context, args) =>
+            script.Globals.Set(name, DynValue.NewCallback((context, args) => LuaSaveReplay.Invoke(script, name, () =>
             {
                 if (args.Count != 0)
                     throw new ScriptRuntimeException(name + "() nie przyjmuje argumentów.");
@@ -27,7 +28,7 @@ namespace Protocol
                     throw new ScriptRuntimeException("Produkcja wymaga zasilania, " + home.Recipe(kind).WoodCost + " wood i wolnej bazy.");
                 building = true;
                 return DynValue.NewYieldReq(new DynValue[0]);
-            }));
+            })));
         }
 
         public bool Tick(float delta)
@@ -52,13 +53,13 @@ namespace Protocol
         {
             var economy = new Table(script);
             var meta = new Table(script);
-            meta.Set("__index", DynValue.NewCallback((context, args) =>
+            meta.Set("__index", DynValue.NewCallback((context, args) => LuaSaveReplay.Invoke(script, "economy." + args[1].String, () =>
             {
                 if (resources == null || !resources.isActiveAndEnabled)
                     throw new ScriptRuntimeException("Ekonomia jest niedostępna.");
                 string key = args[1].String;
                 return key == "iron" ? DynValue.NewNumber(resources.Iron) : key == "wood" ? DynValue.NewNumber(resources.Wood) : DynValue.Nil;
-            }));
+            })));
             meta.Set("__newindex", DynValue.NewCallback((context, args) =>
             {
                 throw new ScriptRuntimeException("economy jest tylko do odczytu.");

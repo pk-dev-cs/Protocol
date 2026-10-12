@@ -8,7 +8,8 @@ namespace Protocol
     {
         Home,
         Scenarios,
-        Settings
+        Settings,
+        Saves
     }
 
     [RequireComponent(typeof(MainMenuView))]
@@ -55,8 +56,24 @@ namespace Protocol
             if (!ScenarioLoadingScreen.Begin(OnLoadingFailed)) OnLoadingFailed("Ładowanie już trwa.");
         }
 
+        public void LoadGame() => ShowPage(MenuPage.Saves);
+
+        public void LoadGame(string id)
+        {
+            if (IsLoading || !view.Interaction.interactable) return;
+            if (!GameSaveService.PrepareLoad(id, out string error))
+            {
+                view.SetMessage(error);
+                return;
+            }
+            IsLoading = true;
+            view.SetBusy(true);
+            if (!ScenarioLoadingScreen.Begin(OnLoadingFailed)) OnLoadingFailed("Ładowanie już trwa.");
+        }
+
         private void OnLoadingFailed(string message)
         {
+            GameSaveService.ClearPending();
             if (this == null) return;
             IsLoading = false;
             view.SetBusy(false);

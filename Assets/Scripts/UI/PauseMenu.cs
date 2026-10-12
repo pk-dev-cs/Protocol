@@ -9,7 +9,10 @@ namespace Protocol
 
         public static bool IsOpen => active != null && active.open;
 
-        private bool open, settings, leaving;
+        private bool open, settings, leaving, saving;
+        private string saveName = "";
+        private Vector2 saveScroll;
+        private System.Collections.Generic.List<GameSaveService.SaveEntry> saves;
         private float previousTimeScale, volume, sensitivity;
         private bool fullscreen;
         private ScreenResolutionPicker resolution;
@@ -18,6 +21,8 @@ namespace Protocol
         private bool musicEnabled;
         private float musicVolume;
         private string message = "";
+
+        internal float SimulationTimeScale => open ? previousTimeScale : Time.timeScale;
 
         private void OnEnable() => active = this;
 
@@ -29,6 +34,7 @@ namespace Protocol
             Time.timeScale = 0;
             open = true;
             settings = false;
+            saving = false;
             message = "";
             GetComponent<SelectionManager>()?.CancelDrag();
         }
@@ -72,8 +78,8 @@ namespace Protocol
                     return;
                 }
 
-                if (open && settings)
-                    settings = false;
+                if (open && (settings || saving))
+                { settings = false; saving = false; message = ""; }
                 else if (open)
                     Resume();
                 else
@@ -108,7 +114,7 @@ namespace Protocol
             {
                 fontSize = 22
             };
-            GUI.Label(new Rect(220, 88, 520, 54), settings ? "Ustawienia" : "Gra wstrzymana", title);
+            GUI.Label(new Rect(220, 88, 520, 54), settings ? "Ustawienia" : saving ? "SAVE GAME" : "Gra wstrzymana", title);
             if (settings)
             {
                 GUI.Label(new Rect(220, 156, 225, 32), "Głośność", label);
@@ -141,11 +147,51 @@ namespace Protocol
                     message = "";
                 }
             }
+            else if (saving)
+            {
+                GUI.Label(new Rect(220, 150, 520, 30), "Nazwa zapisu", label);
+                saveName = GUI.TextField(new Rect(220, 188, 520, 42), saveName, 80,
+                    new GUIStyle(GUI.skin.textField) { fontSize = 22, padding = new RectOffset(10, 10, 8, 8) });
+                GUI.enabled = !string.IsNullOrWhiteSpace(saveName);
+                if (GUI.Button(new Rect(220, 242, 250, 48), "Zapisz", button))
+                {
+                    if (GameSaveService.TrySave(saveName, out string error))
+                    {
+                        saves = GameSaveService.ListSaves();
+                        saveScroll = Vector2.zero;
+                        message = "Zapisano: " + saveName.Trim();
+                    }
+                    else message = error;
+                }
+                GUI.enabled = true;
+                if (GUI.Button(new Rect(490, 242, 250, 48), "Wróć", button))
+                { saving = false; message = ""; }
+                GUI.Label(new Rect(220, 304, 520, 30), "ZAPISY", label);
+                saveScroll = GUI.BeginScrollView(new Rect(220, 342, 520, 170), saveScroll,
+                    new Rect(0, 0, 492, Mathf.Max(170, saves.Count * 56)));
+                for (int i = 0; i < saves.Count; i++)
+                {
+                    GUI.Label(new Rect(8, i * 56, 475, 28), saves[i].Name, label);
+                    GUI.Label(new Rect(8, i * 56 + 28, 475, 24), saves[i].DisplayDate,
+                        new GUIStyle(label) { fontSize = 16 });
+                }
+                if (saves.Count == 0) GUI.Label(new Rect(8, 0, 475, 28), "Brak zapisów.", label);
+                GUI.EndScrollView();
+            }
             else
             {
                 if (GUI.Button(new Rect(220, 160, 520, 56), "Wróć do gry", button))
                     Resume();
-                if (GUI.Button(new Rect(220, 235, 520, 56), "Ustawienia", button))
+                if (GUI.Button(new Rect(220, 225, 520, 56), "Save Game", button))
+                {
+                    saving = true;
+                    saveName = "Zapis " + System.DateTime.Now.ToString("dd.MM.yyyy HH:mm");
+                    saves = GameSaveService.ListSaves();
+                    saveScroll = Vector2.zero;
+                    message = "";
+                    GUI.FocusControl(null);
+                }
+                if (GUI.Button(new Rect(220, 290, 520, 56), "Ustawienia", button))
                 {
                     settings = true;
                     volume = GameSettings.Volume;
@@ -158,9 +204,9 @@ namespace Protocol
                     musicVolume = GameSettings.MusicVolume;
                 }
 
-                if (GUI.Button(new Rect(220, 310, 520, 56), "Wyjdź do menu głównego", button))
+                if (GUI.Button(new Rect(220, 355, 520, 56), "Wyjdź do menu głównego", button))
                     ReturnToMainMenu();
-                if (GUI.Button(new Rect(220, 385, 520, 56), "Wyjdź z gry", button))
+                if (GUI.Button(new Rect(220, 420, 520, 56), "Wyjdź z gry", button))
                 {
                     if (Application.isEditor)
                         message = "Wyjście działa w zbudowanej grze.";
@@ -168,10 +214,7 @@ namespace Protocol
                         Application.Quit();
                 }
 
-                GUI.Label(
-                    new Rect(220, 455, 520, 68),
-                    "Wyjście ze scenariusza oznacza utratę postępu i niezapisanego kodu.",
-                    label);
+
             }
 
             GUI.Label(new Rect(220, settings ? 552 : 530, 520, settings ? 32 : 50), message, label);

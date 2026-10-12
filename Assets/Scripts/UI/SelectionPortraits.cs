@@ -9,6 +9,10 @@ namespace Protocol
     {
         private readonly Dictionary<Transform, RenderTexture> portraits = new Dictionary<Transform, RenderTexture>();
         private Texture2D harvesterIcon;
+        private Texture2D assemblerIcon;
+        private Texture2D haulerIcon;
+        private Texture2D baseIcon;
+        private Texture2D solarPanelIcon;
 
         public Texture Get(Transform source)
         {
@@ -21,6 +25,36 @@ namespace Protocol
                     harvesterIcon = Resources.Load<Texture2D>("UI/PortraitHarvester");
                 if (harvesterIcon != null)
                     return harvesterIcon;
+            }
+
+            if (robot != null && robot.UnitType == "Assembler")
+            {
+                if (assemblerIcon == null)
+                    assemblerIcon = Resources.Load<Texture2D>("UI/PortraitAssembler");
+                if (assemblerIcon != null)
+                    return assemblerIcon;
+            }
+
+            if (robot != null && robot.UnitType == "Hauler")
+            {
+                if (haulerIcon == null) haulerIcon = Resources.Load<Texture2D>("UI/PortraitHauler");
+                if (haulerIcon != null) return haulerIcon;
+            }
+
+            if (source.GetComponent<BaseBuilding>() != null)
+            {
+                if (baseIcon == null)
+                    baseIcon = Resources.Load<Texture2D>("UI/PortraitBase");
+                if (baseIcon != null)
+                    return baseIcon;
+            }
+
+            if (source.GetComponent<SolarPanel>() != null)
+            {
+                if (solarPanelIcon == null)
+                    solarPanelIcon = Resources.Load<Texture2D>("UI/PortraitSolarPanel");
+                if (solarPanelIcon != null)
+                    return solarPanelIcon;
             }
 
             return portraits.TryGetValue(source, out var texture) ? texture : null;

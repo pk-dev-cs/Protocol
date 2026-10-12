@@ -32,6 +32,7 @@ namespace Protocol
         private Script script;
         private DynValue routine;
         private int forcedYields;
+        private LuaSaveReplay saveReplay;
         private readonly System.Diagnostics.Stopwatch executionClock = new System.Diagnostics.Stopwatch();
         public const int MaxInstructionsPerFrame = 512;
         public const double MillisecondsPerFrame = 2;
@@ -208,6 +209,7 @@ namespace Protocol
                 script = new Script(CoreModules.Basic | CoreModules.GlobalConsts | CoreModules.Math);
                 script.Options.ScriptLoader = new NoFileLoader();
                 script.Options.DebugPrint = AppendOutput;
+                saveReplay = new LuaSaveReplay(script, sourceCode);
                 script.Globals.Set("collectgarbage", DynValue.Nil);
                 script.Globals.Set("unitName", DynValue.NewString(gameObject.name));
                 // Expose only yield, not create/resume/wrap that could bypass the host budget.
@@ -243,7 +245,7 @@ namespace Protocol
 
         private void Update()
         {
-            if (PauseMenu.IsOpen)
+            if (PauseMenu.IsOpen || GameSaveService.IsRestoring || ScenarioLoadingScreen.IsVisible)
                 return;
             if (State != LuaProgramState.Running)
                 return;
@@ -259,6 +261,7 @@ namespace Protocol
                 while (LastInstructionSteps < MaxInstructionsPerFrame && executionClock.Elapsed.TotalMilliseconds < MillisecondsPerFrame)
                 {
                     routine.Coroutine.Resume();
+                    saveReplay.ResumeCount++;
                     LastInstructionSteps++;
                     if (routine.Coroutine.State == CoroutineState.Dead)
                     {
@@ -300,6 +303,7 @@ namespace Protocol
 
         private void AppendOutput(string line)
         {
+            if (saveReplay != null && saveReplay.Replaying) return;
             if (line.Length > 512)
                 line = line.Substring(0, 512);
             Output += line + "\n";
@@ -325,9 +329,51 @@ namespace Protocol
             api = null;
             routine = null;
             script = null;
+            saveReplay = null;
         }
 
         private void OnDisable() => StopProgram();
+
+        internal Newtonsoft.Json.Linq.JObject CaptureGameState(SaveObjectIndex index)
+        {
+            var data = new Newtonsoft.Json.Linq.JObject { ["fields"] = SaveStateCodec.Capture(this, index) };
+            if (State == LuaProgramState.Running)
+            {
+                data["api"] = api != null ? SaveStateCodec.Capture(api, index, saveReplay)
+                    : SaveStateCodec.Capture(baseApi, index, saveReplay);
+                data["execution"] = saveReplay.Capture();
+            }
+            return data;
+        }
+
+        internal System.Collections.IEnumerator RestoreGameState(Newtonsoft.Json.Linq.JObject data, SaveObjectIndex index)
+        {
+            var execution = data["execution"] as Newtonsoft.Json.Linq.JObject;
+            if (execution != null)
+            {
+                SourceCode = (string)execution["source"];
+                if (!RunProgram()) throw new InvalidOperationException("Cannot restore Lua: " + Error);
+                saveReplay.BeginRestore(execution);
+                long count = (long)execution["resumes"];
+                var budget = new System.Diagnostics.Stopwatch();
+                while (saveReplay.ResumeCount < count)
+                {
+                    budget.Restart();
+                    do
+                    {
+                        routine.Coroutine.Resume();
+                        saveReplay.ResumeCount++;
+                        if (routine.Coroutine.State == CoroutineState.Dead)
+                            throw new InvalidOperationException("Saved Lua program ended during replay.");
+                    } while (saveReplay.ResumeCount < count && budget.ElapsedMilliseconds < 4);
+                    if (saveReplay.ResumeCount < count) yield return null;
+                }
+                saveReplay.FinishRestore();
+                SaveStateCodec.Restore(api != null ? (object)api : baseApi,
+                    (Newtonsoft.Json.Linq.JObject)data["api"], index, saveReplay);
+            }
+            SaveStateCodec.Restore(this, (Newtonsoft.Json.Linq.JObject)data["fields"], index);
+        }
 
         private sealed class NoFileLoader : ScriptLoaderBase
         {
