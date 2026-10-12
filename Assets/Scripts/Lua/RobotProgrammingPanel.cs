@@ -20,6 +20,7 @@ namespace Protocol
         public RobotLuaRuntime CurrentRuntime => runtime;
         public static bool IsOpen => activePanel != null && RightHudPanels.IsRequested(RightHudPanel.Software);
         public static bool HasEditorFocus => IsOpen && !PauseMenu.IsOpen && activePanel.editorFocused;
+        public bool IsReadOnly => AnyRunning;
         private bool AnyRunning => targets.Exists(t => t != null && t.State == LuaProgramState.Running);
         private static bool Visible => !PauseMenu.IsOpen && !ScenarioLoadingScreen.IsVisible;
         public static Rect PanelRect
@@ -132,6 +133,7 @@ namespace Protocol
 
         public void ApplyCode(string code)
         {
+            if (IsReadOnly) return;
             foreach (var target in targets) if (target != null) target.SourceCode = code;
         }
 
@@ -182,7 +184,8 @@ namespace Protocol
             if (e.rawType == EventType.MouseDown && !panel.Contains(e.mousePosition))
                 ReleaseEditorFocus();
             string beforeEdit = runtime.SourceCode;
-            if (IsOpen) runtime.SourceCode = codeEditor.HandleInput(runtime.SourceCode ?? "", e);
+            if (IsReadOnly) codeEditor.Dismiss();
+            if (IsOpen && !IsReadOnly) runtime.SourceCode = codeEditor.HandleInput(runtime.SourceCode ?? "", e);
             float scale = RightHudPanels.Scale;
             EnsureStyles(scale);
             int oldDepth = GUI.depth;
@@ -214,7 +217,7 @@ namespace Protocol
             string code = runtime.SourceCode ?? "";
             Vector2 codeSize = editorStyle.CalcSize(new GUIContent(code + "\n "));
             Rect codeRect = GUILayoutUtility.GetRect(Mathf.Max(viewportWidth, codeSize.x), Mathf.Max(editorHeight - 20, codeSize.y));
-            runtime.SourceCode = codeEditor.Draw(code, codeRect, editorStyle, codeScroll, editorHeight, viewportWidth, rootOrigin);
+            runtime.SourceCode = codeEditor.Draw(code, codeRect, editorStyle, codeScroll, editorHeight, viewportWidth, rootOrigin, IsReadOnly);
             editorFocused = IsOpen && codeEditor.HasKeyboardFocus;
             GUILayout.EndScrollView();
 
@@ -227,6 +230,7 @@ namespace Protocol
             GUI.enabled = interactive;
             if (GUILayout.Button("Save", buttonStyle, GUILayout.Height(30 * scale))) SaveTargets();
             GUILayout.EndHorizontal();
+            if (IsReadOnly) GUILayout.Label("Stop script to edit", textStyle);
             GUILayout.Label("OUTPUT", titleStyle);
             logScroll = GUILayout.BeginScrollView(logScroll);
             if (runtime.StorageError) GUILayout.Label(runtime.StorageMessage, textStyle);
@@ -237,7 +241,7 @@ namespace Protocol
             if (runtime.Output.Length > 0) GUILayout.Label(runtime.Output, textStyle);
             GUILayout.EndScrollView();
             GUILayout.EndArea();
-            if (IsOpen) codeEditor.DrawPopup(panel, scale, textStyle, buttonStyle);
+            if (IsOpen && !IsReadOnly) codeEditor.DrawPopup(panel, scale, textStyle, buttonStyle);
             GUI.enabled = previousEnabled;
             if (runtime.SourceCode != beforeEdit) ApplyCode(runtime.SourceCode);
             if (panel.Contains(e.mousePosition) && (e.isMouse || e.type == EventType.ScrollWheel)) e.Use();
